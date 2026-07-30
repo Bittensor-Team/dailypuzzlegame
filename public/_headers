@@ -1,0 +1,20 @@
+# Cloudflare Pages reads this file to set response headers.
+# Mirrors the Caddyfile policy so both hosts behave the same.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
+
+/index.html
+  Cache-Control: no-cache
+
+/privacy.html
+  Cache-Control: no-cache
+
+/*.css
+  Cache-Control: public, max-age=3600
+
+/*.js
+  Cache-Control: public, max-age=3600

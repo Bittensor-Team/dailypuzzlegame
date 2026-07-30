@@ -1,0 +1,39 @@
+# Daily Color Puzzle — static site served by Caddy.
+#
+# Public HTTPS (Caddy obtains and renews the certificate automatically):
+#   caddy run --config /root/dailycolorpuzzle/Caddyfile
+# Requires: a domain whose A/AAAA record points at this server, and ports
+# 80 + 443 reachable from the internet.
+#
+# Local preview instead:
+#   caddy run --config /root/dailycolorpuzzle/Caddyfile --adapter caddyfile
+#   ...after commenting out the domain block and uncommenting the :8080 one.
+
+puzzle.example.com {
+	root * /root/dailycolorpuzzle/public
+	file_server
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		X-Frame-Options "SAMEORIGIN"
+		# The app makes no network requests and loads nothing third-party.
+		# The data: image source is the inline SVG favicon.
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+		-Server
+	}
+
+	# The puzzle changes daily, so never let index.html go stale.
+	header /index.html Cache-Control "no-cache"
+	header /privacy.html Cache-Control "no-cache"
+	header /*.css Cache-Control "public, max-age=3600"
+	header /*.js Cache-Control "public, max-age=3600"
+}
+
+# Local preview without a domain or certificates:
+# :8080 {
+# 	root * /root/dailycolorpuzzle/public
+# 	file_server
+# 	encode zstd gzip
+# }

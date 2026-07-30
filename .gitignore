@@ -1,0 +1,15 @@
+# Secrets live outside the repo (see /etc/dailycolorpuzzle.env). Nothing here.
+*.env
+.env*
+
+# Runtime data
+*.db
+*.db-wal
+*.db-shm
+backups/
+
+# Local noise
+node_modules/
+*.log
+*.png
+.DS_Store

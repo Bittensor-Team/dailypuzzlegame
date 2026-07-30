@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy &middot; Daily Color Puzzle</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>Privacy</h1>
+
+<div class="game prose">
+  <p>The puzzle itself runs in your browser. The shared scoreboard needs a server, so some data does leave your device &mdash; this page says exactly what.</p>
+
+  <h2>Stored in your browser</h2>
+  <p>Your progress on today's puzzle, your move count, your solve history, your streak, your session token, your nickname, and the color-label setting are kept in this browser's <b>localStorage</b>.</p>
+
+  <h2>Sent to the server</h2>
+  <p>When you solve a puzzle, this is sent so your result can appear on the shared scoreboard: the <b>puzzle date</b>, the <b>sequence of moves you made</b>, and your <b>session token</b>. The move sequence is replayed on the server to confirm the score is real, then discarded &mdash; only the final move count is kept.</p>
+  <p>Your IP address is briefly held in memory for rate limiting and is written to the web server's standard access log.</p>
+
+  <h2>Your account</h2>
+  <p>An account is a <b>nickname</b> and a <b>password</b> &mdash; no email, no phone number, nothing else about you. The nickname is public and appears beside your score. The password is never stored: the server keeps only a scrypt hash with a per-account random salt, which cannot be reversed back into your password.</p>
+  <p>Signing in issues a random session token, held in this browser's localStorage and valid for 180 days. Signing out deletes it on the server.</p>
+
+  <h2>Connection security</h2>
+  <p>Use <b>https://puzzle.landready.site</b>. That address is served over HTTPS with a Let&rsquo;s Encrypt certificate, so your password and session are encrypted in transit all the way to this server.</p>
+  <p class="warn-note">The older address on port 8080 is plain HTTP and does not encrypt anything. If you signed in there, sign in again on the HTTPS address.</p>
+
+  <h2>What is not collected</h2>
+  <p>No email address, no real name, no cookies, no analytics, no ad networks, no third-party services of any kind. Your password is never stored in a readable form.</p>
+
+  <h2>Clearing your data</h2>
+  <p>Clearing site data for this page removes everything held locally, including your streak and your session. Your account and its scores stay on the server &mdash; sign in again to get them back. To have an account and its scores deleted, get in touch with whoever runs this server.</p>
+  <p class="panel-actions"><a class="btn btn-primary" href="index.html">Back to the puzzle</a></p>
+</div>
+
+<footer class="footnote">
+  <span>&copy; 2026 Daily Color Puzzle</span>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <span class="foot-by">Developed by <b>@LegenD@</b></span>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <a href="index.html">Back to the puzzle</a>
+</footer>
+
+</body>
+</html>

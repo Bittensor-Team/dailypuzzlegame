@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily Color Puzzle</title>
+<meta name="description" content="A new color-sorting puzzle every day. Group each color into its own tube.">
+<meta name="theme-color" content="#030711">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23030711'/><circle cx='16' cy='16' r='14' fill='none' stroke='%2322e0ff' stroke-width='1.1' stroke-dasharray='1 3' opacity='.8'/><path d='M16 4.5 26.1 10.25 26.1 21.75 16 27.5 5.9 21.75 5.9 10.25Z' fill='none' stroke='%2322e0ff' stroke-width='1.6'/><rect x='10.5' y='11.4' width='11' height='2.5' rx='1.25' fill='%2331ff5a'/><rect x='10.5' y='14.9' width='11' height='2.5' rx='1.25' fill='%23f2ee4a'/><rect x='10.5' y='18.4' width='11' height='2.5' rx='1.25' fill='%23ff2be0'/></svg>">
+</head>
+<body>
+
+<button type="button" id="themeBtn" class="themetoggle" title="Switch theme"
+        aria-label="Switch between dark and light theme">&#9789;</button>
+
+<div class="countdown" id="countdown">
+  <span class="cd-label">Next puzzle in</span>
+  <span class="cd-time" id="cdTime">--h --m --s</span>
+</div>
+
+<h1 id="pageTitle">
+  <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+    <circle class="logo-ticks" cx="24" cy="24" r="22"></circle>
+    <circle class="logo-sweep" cx="24" cy="24" r="18.5"></circle>
+    <path class="logo-hex" d="M24 6.5 39.2 15.25 39.2 32.75 24 41.5 8.8 32.75 8.8 15.25Z"></path>
+    <rect class="logo-bar b1" x="16" y="17" width="16" height="3.6" rx="1.8"></rect>
+    <rect class="logo-bar b2" x="16" y="22.2" width="16" height="3.6" rx="1.8"></rect>
+    <rect class="logo-bar b3" x="16" y="27.4" width="16" height="3.6" rx="1.8"></rect>
+  </svg>
+  <span class="title-text">Daily Color Puzzle</span>
+  <span class="date" id="dateLabel"></span>
+</h1>
+
+<div class="layout">
+
+<section class="hud hud-rank" aria-labelledby="rankTitle">
+  <span class="hud-hatch" aria-hidden="true"></span>
+  <span class="hud-rail" aria-hidden="true"></span>
+  <header class="hud-head">
+    <h2 id="rankTitle">Today&rsquo;s rank</h2>
+    <span class="hud-tag" id="rankTag">standby</span>
+    <button type="button" id="profileBtn" class="btn btn-ghost btn-sm">Profile</button>
+  </header>
+  <div class="rank-row">
+    <dl class="rank-stat">
+      <dt>Best move</dt>
+      <dd id="rankBest">&mdash;</dd>
+      <div class="meter"><span class="meter-fill" id="bestMeter"></span></div>
+    </dl>
+
+    <div class="gauge">
+      <svg class="gauge-svg" viewBox="0 0 128 128" aria-hidden="true">
+        <circle class="g-ticks" cx="64" cy="64" r="60"></circle>
+        <circle class="g-track" cx="64" cy="64" r="49"></circle>
+        <circle class="g-fill" id="gaugeFill" cx="64" cy="64" r="49"></circle>
+        <circle class="g-inner" cx="64" cy="64" r="37"></circle>
+      </svg>
+      <p class="gauge-center">
+        <b id="rankValue">&mdash;</b>
+        <span id="rankOf">not solved yet</span>
+      </p>
+    </div>
+
+    <dl class="rank-stat">
+      <dt>Attempts</dt>
+      <dd id="rankTries">&mdash;</dd>
+      <div class="segs" id="triesSegs"></div>
+    </dl>
+  </div>
+</section>
+
+<section class="hud hud-zone" aria-labelledby="zoneTitle">
+  <header class="hud-head">
+    <h2 id="zoneTitle">Score zone</h2>
+    <span class="hud-tag" id="zoneTag">players per move count</span>
+  </header>
+  <div id="zone"></div>
+</section>
+
+<div class="game" id="game">
+  <canvas class="worldmap" id="earth" aria-hidden="true"></canvas>
+  <span class="hud-hatch" aria-hidden="true"></span>
+  <header class="topbar">
+    <span class="brand">Color Puzzle</span>
+    <span class="stat">Moves: <b id="moveCount">0</b></span>
+    <span class="stat">Selected: <b id="selectedLabel">None</b></span>
+    <span class="solved-chip" id="solvedChip" hidden>&#10003; Solved</span>
+    <span class="goal">Goal: Group each color</span>
+  </header>
+
+  <main class="board" id="board" aria-label="Puzzle board"></main>
+
+  <footer class="controls">
+    <button type="button" id="restartBtn" class="btn btn-primary">Restart</button>
+    <p class="hist-summary" id="histSummary" role="status"></p>
+    <div class="histstrip" id="histStrip" aria-label="Your earlier solves, most recent first"></div>
+    <div class="controls-right">
+      <button type="button" id="helpBtn" class="btn btn-icon" title="How to play" aria-label="How to play">?</button>
+      <button type="button" id="eyeBtn" class="btn btn-icon" title="Toggle color labels" aria-label="Toggle color labels" aria-pressed="false">&#128065;</button>
+      <button type="button" id="undoBtn" class="btn btn-primary">Undo</button>
+    </div>
+  </footer>
+
+  <div class="overlay" id="winOverlay" hidden>
+    <div class="panel">
+      <h2>Solved!</h2>
+      <p class="win-line" id="winLine"></p>
+      <dl class="stats" id="winStats"></dl>
+      <div class="panel-actions">
+        <button type="button" id="shareBtn" class="btn btn-primary">Copy result</button>
+        <a class="btn btn-ghost" id="tgWinLink" href="https://t.me/MyDailyColorPuzzleLegendbot"
+           target="_blank" rel="noopener">Telegram</a>
+        <button type="button" id="closeWinBtn" class="btn btn-ghost">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="helpOverlay" hidden>
+    <div class="panel">
+      <h2>How to play</h2>
+      <ul class="rules">
+        <li>Tap a tube to pick up the block(s) at the <b>bottom</b> of it.</li>
+        <li>Tap another tube to pour them in. They only fit on an <b>empty</b> tube or on a <b>matching color</b>.</li>
+        <li>A tube holds four blocks. Win by grouping every color into a tube of its own.</li>
+        <li>Undo puts a block back, but does <b>not</b> refund the move &mdash; your count keeps climbing.</li>
+        <li>Everyone gets the same puzzle each day. It is always solvable.</li>
+      </ul>
+      <p class="keys">Keys: <kbd>1</kbd>&ndash;<kbd>9</kbd>, <kbd>0</kbd>, <kbd>-</kbd>, <kbd>=</kbd> pick tubes &middot; <kbd>Esc</kbd> deselect &middot; <kbd>U</kbd> undo &middot; <kbd>R</kbd> restart</p>
+      <div class="panel-actions">
+        <button type="button" id="closeHelpBtn" class="btn btn-primary">Got it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="leaderboard" id="leaderboard" aria-labelledby="lbTitle">
+  <header class="lb-head">
+    <h2 id="lbTitle">Leaderboard</h2>
+    <span class="live" id="liveDot" title="Updating automatically"><i></i>live</span>
+    <dl class="lb-summary" id="lbSummary"></dl>
+    <button type="button" id="dayBtn" class="datepick" aria-haspopup="dialog" aria-expanded="false">
+      <span id="dayBtnText">Today</span><span class="datepick-ico" aria-hidden="true">▦</span>
+    </button>
+  </header>
+  <div class="lb-block lb-grow" id="playersBlock">
+    <h3 class="lb-h3" id="playersTitle">Today&rsquo;s players</h3>
+    <div class="lb-wrap" id="boardWrap"></div>
+  </div>
+
+</section>
+
+</div>
+
+  <div class="overlay overlay-fixed" id="profileOverlay" hidden>
+  <div class="panel">
+    <h2>Profile</h2>
+    <h3 class="panel-h3">Signed in as</h3>
+    <p class="whoami" id="whoami">&mdash;</p>
+    <p>Your scores are tied to this account. Sign in with the same nickname and password on any browser to keep your history.</p>
+    <h3 class="panel-h3">Change password</h3>
+    <form id="pwForm">
+      <label class="fld">
+        <span>Current password</span>
+        <input type="password" id="pwCurrent" class="txt" maxlength="200" autocomplete="current-password" required>
+      </label>
+      <label class="fld">
+        <span>New password</span>
+        <input type="password" id="pwNext" class="txt" maxlength="200" minlength="8"
+               placeholder="at least 8 characters" autocomplete="new-password" required>
+      </label>
+      <p class="formnote" id="pwNote" role="status"></p>
+      <div class="panel-actions panel-actions-wrap">
+        <button type="submit" id="pwSave" class="btn btn-ghost btn-sm">Update password</button>
+        <button type="button" id="signOutBtn" class="btn btn-ghost btn-sm">Sign out</button>
+      </div>
+    </form>
+    <div class="panel-actions">
+      <button type="button" id="closeProfileBtn" class="btn btn-primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay overlay-fixed" id="authOverlay" hidden>
+  <div class="panel">
+    <h2 id="authTitle">Sign in</h2>
+    <p id="authBlurb">Your nickname and score are public. Your password keeps them yours.</p>
+
+    <form id="authForm">
+      <label class="fld">
+        <span>Nickname</span>
+        <input type="text" id="authName" class="txt" maxlength="24" placeholder="@LegenD@"
+               autocomplete="username" aria-label="Nickname" required>
+      </label>
+      <label class="fld">
+        <span>Password</span>
+        <input type="password" id="authPass" class="txt" maxlength="200" minlength="8"
+               placeholder="at least 8 characters" autocomplete="current-password"
+               aria-label="Password" required>
+      </label>
+      <p class="formnote" id="authNote" role="status"></p>
+      <div class="panel-actions">
+        <button type="submit" id="authSubmit" class="btn btn-primary">Sign in</button>
+      </div>
+    </form>
+
+    <p class="authswap">
+      <span id="authSwapText">No account yet?</span>
+      <button type="button" id="authSwap" class="linkbtn">Create one</button>
+    </p>
+  </div>
+</div>
+
+<div class="cal" id="cal" role="dialog" aria-label="Choose a date" hidden>
+  <div class="cal-head">
+    <button type="button" id="calPrev" class="cal-nav" aria-label="Previous month">&lsaquo;</button>
+    <span id="calMonth" class="cal-month"></span>
+    <button type="button" id="calNext" class="cal-nav" aria-label="Next month">&rsaquo;</button>
+  </div>
+  <div class="cal-dow">
+    <span title="Monday">M</span><span title="Tuesday">T</span><span title="Wednesday">W</span>
+    <span title="Thursday">T</span><span title="Friday">F</span><span title="Saturday">S</span>
+    <span title="Sunday">S</span>
+  </div>
+  <div class="cal-grid" id="calGrid"></div>
+  <div class="cal-foot">
+    <button type="button" id="calToday" class="btn btn-ghost btn-xs">Today</button>
+  </div>
+</div>
+
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="champ" id="champ" hidden aria-hidden="true">
+  <p class="champ-rank">#1</p>
+  <p class="champ-line">Top of the board</p>
+</div>
+
+<footer class="footnote">
+  <span>&copy; <span id="footYear">2026</span> Daily Color Puzzle</span>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <span class="foot-by">Developed by <b>@LegenD@</b></span>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <a href="https://t.me/MyDailyColorPuzzleLegendbot" target="_blank" rel="noopener" class="foot-tg">
+    <span aria-hidden="true">✈</span> Scores on Telegram
+  </a>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <a href="privacy.html">&#9432; Privacy</a>
+</footer>
+
+<script src="earth.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
