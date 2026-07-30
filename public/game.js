@@ -69,16 +69,26 @@
   /* Dates                                                               */
   /* ------------------------------------------------------------------ */
 
+  /* The puzzle day is UTC for everyone. Deriving it from the local clock put
+     players in different timezones on different boards at the same moment and
+     split the leaderboard across two dates. */
   function isoDate(d) {
-    return d.getFullYear() + '-' +
-      String(d.getMonth() + 1).padStart(2, '0') + '-' +
-      String(d.getDate()).padStart(2, '0');
+    return d.toISOString().slice(0, 10);
+  }
+
+  function utcToday() {
+    return isoDate(new Date());
+  }
+
+  // Build a day key from calendar parts without going through a local Date,
+  // which would shift the result by a day for some offsets.
+  function ymd(y, m, d) {
+    return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   }
 
   function shiftDate(iso, days) {
-    var p = iso.split('-');
-    var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
-    d.setDate(d.getDate() + days);
+    var d = new Date(iso + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + days);
     return isoDate(d);
   }
 
@@ -201,9 +211,7 @@
     // Streak and play count advance once per day; the best score can improve
     // on any attempt.
     if (stats.lastDate !== date) {
-      var prev = new Date(date + 'T00:00:00');
-      prev.setDate(prev.getDate() - 1);
-      stats.streak = stats.lastDate === isoDate(prev) ? stats.streak + 1 : 1;
+      stats.streak = stats.lastDate === shiftDate(date, -1) ? stats.streak + 1 : 1;
       stats.played += 1;
       stats.lastDate = date;
     }
@@ -613,8 +621,8 @@
 
   function boot() {
     var params = new URLSearchParams(location.search);
-    var date = params.get('date') || isoDate(new Date());
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) date = isoDate(new Date());
+    var date = params.get('date') || utcToday();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) date = utcToday();
 
     // The board is dealt by the server. Generating it here would mean shipping
     // the generator — and with it, every future puzzle — to every visitor.
@@ -771,7 +779,7 @@
       var html = '';
       for (var b = 0; b < lead; b++) html += '<span class="cal-day blank"></span>';
       for (var d = 1; d <= days; d++) {
-        var iso = isoDate(new Date(y, m, d));
+        var iso = ymd(y, m, d);
         var out = iso > date || iso < OLDEST;
         var cls = 'cal-day' + (iso === viewDate ? ' sel' : '') + (iso === date ? ' now' : '');
         html += '<button type="button" class="' + cls + '" data-day="' + iso + '"' +
@@ -779,8 +787,8 @@
       }
       el.calGrid.innerHTML = html;
 
-      var firstIso = isoDate(new Date(y, m, 1));
-      var lastIso = isoDate(new Date(y, m, days));
+      var firstIso = ymd(y, m, 1);
+      var lastIso = ymd(y, m, days);
       el.calPrev.disabled = firstIso <= OLDEST;
       el.calNext.disabled = lastIso >= date;
     }
@@ -1421,10 +1429,10 @@
 
       function tick() {
         var now = new Date();
-        var next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
-        var left = Math.max(0, next - now);
+        var next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0);
+        var left = Math.max(0, next - now.getTime());
 
-        if (left === 0 || isoDate(now) !== date) {
+        if (left === 0 || utcToday() !== date) {
           // A new board is live; reload rather than leave a stale one on screen.
           el.cdTime.textContent = 'new puzzle ready';
           setTimeout(function () { location.reload(); }, 1200);

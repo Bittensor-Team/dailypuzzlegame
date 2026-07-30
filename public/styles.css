@@ -336,6 +336,13 @@ h1 .date {
   text-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.45);
 }
 .cd-time b { color: var(--ink-dim); font-weight: 400; margin: 0 1px 0 0; }
+.cd-tz {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+  border: 1px solid var(--line);
+  padding: 1px 4px;
+}
 
 /* ---------- panel shell ---------- */
 

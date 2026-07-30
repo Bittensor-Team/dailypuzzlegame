@@ -188,16 +188,14 @@ function isoUtcDay() {
 }
 
 /*
- * The latest date that is legitimately "today" for someone.
- *
- * Clients ask for their own local date. Anyone east of UTC rolls over to
- * tomorrow before the server does — at 21:00 UTC that is everywhere from
- * UTC+3 onward — so comparing against the server's UTC date locked those
- * players out of the board entirely. UTC+14 is the furthest real offset
- * (Kiritimati), so a date is open once it has begun anywhere on Earth.
+ * The puzzle day is UTC for every player, so the open board is simply today in
+ * UTC. A small skew is allowed for clients whose clock runs slightly fast,
+ * which would otherwise 403 them for a few seconds around midnight.
  */
+const CLOCK_SKEW_MS = 2 * 60 * 1000;
+
 function maxOpenDay() {
-  return new Date(Date.now() + 14 * 3600e3).toISOString().slice(0, 10);
+  return new Date(Date.now() + CLOCK_SKEW_MS).toISOString().slice(0, 10);
 }
 
 function plausibleDay(day) {
@@ -205,7 +203,7 @@ function plausibleDay(day) {
   const t = Date.parse(day + 'T00:00:00Z');
   if (Number.isNaN(t)) return false;
   const now = Date.now();
-  return t <= now + 14 * 3600e3 && t >= now - 365 * 24 * 3600e3;
+  return t <= now + CLOCK_SKEW_MS && t >= now - 365 * 24 * 3600e3;
 }
 
 /* ------------------------------------------------------------------ */
