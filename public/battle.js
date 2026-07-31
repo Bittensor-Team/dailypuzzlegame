@@ -135,6 +135,8 @@
   /* ------------------------------------------------------------------ */
 
   var fx = window.DCPFx || { solve: function () {}, champion: function () {} };
+  // The same badges the daily leaderboard uses.
+  var rankBadge = window.DCPBadge || function () { return ''; };
 
   var el = {};
   ['themeBtn', 'whoamiChip', 'lobby', 'lobbyNote', 'quickBtn', 'createBtn', 'sizeSel',
@@ -145,6 +147,8 @@
    'authForm', 'authName', 'authPass', 'authNote', 'authSubmit', 'authTitle', 'authBlurb',
    'authSwap', 'authSwapText', 'battleHistory', 'parStat', 'parVal',
    'openList', 'openLive', 'openTabBtn', 'mineTabBtn', 'openPane', 'minePane',
+   'liveTabBtn', 'livePane', 'liveList', 'rankTabBtn', 'rankPane', 'rankList',
+   'watch', 'watchCode', 'watchGrid', 'watchLive', 'watchLeave',
    'arenaLive', 'modeLabel', 'footYear', 'champ', 'eyeBtn', 'resultEmblem',
    'emblemPlace'].forEach(function (id) {
     el[id] = document.getElementById(id);
@@ -170,6 +174,7 @@
      move, and then its board replaces ours. */
   var localMoves = 0;       // our count, including moves not yet acknowledged
   var localHistory = [];    // {from, to, count} per optimistic pour, for undo
+  var watching = false;     // in this battle as a spectator, not a player
 
   function serverNow() { return Date.now() + skew; }
 
@@ -187,6 +192,7 @@
     el.lobby.hidden = which !== 'lobby';
     el.room.hidden = which !== 'room';
     el.arena.hidden = which !== 'arena';
+    el.watch.hidden = which !== 'watch';
   }
 
   function note(node, message, bad) {
@@ -311,8 +317,8 @@
 
   // A style attribute would be refused by the page's CSP, so the bar width is
   // applied through the CSSOM instead.
-  function paintRivalStyles() {
-    el.rivals.querySelectorAll('.side-fill[data-pct]').forEach(function (bar) {
+  function paintStyles(root) {
+    root.querySelectorAll('.side-fill[data-pct]').forEach(function (bar) {
       bar.style.width = bar.getAttribute('data-pct') + '%';
     });
   }
@@ -346,7 +352,7 @@
 
     var rivals = view.players.filter(function (p) { return !p.you; });
     el.rivals.innerHTML = rivals.map(rivalHTML).join('');
-    paintRivalStyles();
+    paintStyles(el.rivals);
     el.rivals.classList.toggle('rivals-many', rivals.length > 1);
     renderMyBoard();
   }
@@ -416,6 +422,14 @@
       celebrated = true;
       if (mine.place === 1) championCelebration();
       else fx.solve();
+    }
+
+    if (watching || (view.players.length && !me())) {
+      watching = true;
+      show('watch');
+      renderWatch();
+      history.replaceState(null, '', 'battle.html?watch=' + view.code);
+      return;
     }
 
     if (view.status === 'open') {
@@ -507,7 +521,11 @@
       encodeURIComponent(session.token()));
     lobbyStream.addEventListener('open', function (e) {
       el.openLive.classList.remove('off');
-      try { renderOpen(JSON.parse(e.data).rooms); } catch (err) { /* torn frame */ }
+      try {
+        var d = JSON.parse(e.data);
+        renderOpen(d.rooms);
+        renderLive(d.live);
+      } catch (err) { /* torn frame */ }
     });
     lobbyStream.onerror = function () { el.openLive.classList.add('off'); };
   }
@@ -541,6 +559,8 @@
 
   var TABS = [
     { btn: 'openTabBtn', pane: 'openPane' },
+    { btn: 'liveTabBtn', pane: 'livePane' },
+    { btn: 'rankTabBtn', pane: 'rankPane' },
     { btn: 'mineTabBtn', pane: 'minePane' }
   ];
 
@@ -552,9 +572,11 @@
       el[t.btn].classList.toggle('on', on);
       el[t.pane].hidden = !on;
     });
-    // The live dot describes the open list; on the history tab it means nothing.
-    el.openLive.hidden = index !== 0;
-    if (index === 1) loadHistory();
+    // The dot describes the streamed lists; the standings and your history are
+    // fetched on demand, so it would be a lie on those.
+    el.openLive.hidden = index > 1;
+    if (index === 2) loadRanking();
+    if (index === 3) loadHistory();
   }
 
   TABS.forEach(function (t, i) {
@@ -568,6 +590,59 @@
     });
   });
 
+  function renderLive(battles) {
+    if (!battles || battles.length === 0) {
+      el.liveList.innerHTML = '<p class="lb-empty">Nothing being played right now.</p>';
+      return;
+    }
+    el.liveList.innerHTML = '<table class="lb lb-open"><thead><tr>' +
+      '<th>Players</th><th class="moves">Moves</th><th class="tries">Code</th><th></th>' +
+      '</tr></thead><tbody>' + battles.map(function (b) {
+        var names = b.players.map(function (p) {
+          var mark = p.solved ? ' <span class="pill pill-win">' + ordinal(p.place) + '</span>'
+            : p.left ? ' <span class="pill pill-gone">left</span>' : '';
+          return esc(p.name) + mark;
+        }).join(' <span class="vs">vs</span> ');
+        var moves = b.players.map(function (p) { return p.moves; }).join('&thinsp;/&thinsp;');
+        return '<tr><td class="date">' + names + '</td>' +
+          '<td class="moves">' + moves + '</td>' +
+          '<td class="tries">' + esc(b.code) + '</td>' +
+          '<td class="joincell"><button type="button" class="btn btn-ghost btn-xs watchbtn" ' +
+          'data-battle="' + esc(b.battle) + '" title="Watch this battle">' +
+          '\u25C9 Watch</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function loadRanking() {
+    fetch('/api/battle/ranking?token=' + encodeURIComponent(session.token() || ''))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (!d || !d.ranking.length) {
+          el.rankList.innerHTML =
+            '<p class="lb-empty">No battles finished yet. Win one and the board starts here.</p>';
+          return;
+        }
+        el.rankList.innerHTML = '<table class="lb"><thead><tr>' +
+          '<th>#</th><th>Player</th><th class="moves">Wins</th><th class="tries">Played</th>' +
+          '</tr></thead><tbody>' + d.ranking.map(function (r) {
+            var cls = (r.you ? 'me' : '') + (r.rank <= 3 ? ' podium-' + r.rank : '');
+            return '<tr class="' + cls.trim() + '">' +
+              '<td class="rank">' + rankBadge(r.rank) + r.rank + '</td>' +
+              '<td class="date">' + esc(r.name) + (r.you ? ' <span class="pb">you</span>' : '') + '</td>' +
+              '<td class="moves">' + r.wins + '</td>' +
+              '<td class="tries">' + r.played + '</td></tr>';
+          }).join('') + '</tbody></table>';
+      })
+      .catch(function () {
+        el.rankList.innerHTML = '<p class="lb-empty">Could not load the standings.</p>';
+      });
+  }
+
+  el.liveList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.watchbtn');
+    if (btn) watchBattle(btn.getAttribute('data-battle'));
+  });
+
   el.openList.addEventListener('click', function (e) {
     var btn = e.target.closest('.joinbtn');
     if (!btn) return;
@@ -576,6 +651,28 @@
       .then(enter);
   });
 
+  function watchBattle(battleId) {
+    watching = true;
+    disconnectLobby();
+    show('watch');
+    el.watchGrid.innerHTML = '<p class="lb-empty">Connecting\u2026</p>';
+    connect(battleId);
+  }
+
+  function renderWatch() {
+    el.watchCode.textContent = view.code;
+    el.watchGrid.innerHTML = view.players.map(rivalHTML).join('');
+    paintStyles(el.watchGrid);
+    if (view.status === 'done') {
+      el.watchGrid.insertAdjacentHTML('afterbegin',
+        '<p class="watch-over">Battle over &mdash; won by <b>' +
+        esc((view.players.find(function (p) { return p.player === view.winner; }) || {}).name || '\u2014') +
+        '</b></p>');
+    }
+  }
+
+  el.watchLeave.addEventListener('click', function () { leave(); });
+
   function connect(battleId) {
     if (stream) { stream.close(); stream = null; }
     var url = '/api/battle/stream?battle=' + encodeURIComponent(battleId) +
@@ -583,11 +680,13 @@
     stream = new EventSource(url);
     stream.addEventListener('state', function (e) {
       el.arenaLive.classList.remove('off');
+      el.watchLive.classList.remove('off');
       try { apply(JSON.parse(e.data)); } catch (err) { /* ignore a torn frame */ }
     });
     stream.onerror = function () {
       // EventSource reconnects on its own; just say so while it is down.
       el.arenaLive.classList.add('off');
+      el.watchLive.classList.add('off');
     };
   }
 
@@ -836,7 +935,9 @@
   });
 
   function leave() {
-    if (view) post('/api/battle/leave', { token: session.token(), battle: view.battle });
+    // A spectator holds no seat, so there is nothing to give up.
+    if (view && !watching) post('/api/battle/leave', { token: session.token(), battle: view.battle });
+    watching = false;
     if (stream) { stream.close(); stream = null; }
     view = null; myTubes = null; selected = null; boardBuilt = false;
     el.resultOverlay.hidden = true;

@@ -116,6 +116,22 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
         WHERE b.status = 'open'
         ORDER BY b.created ASC
         LIMIT 40`),
+    /* All-time standings: wins are battles this player took, played is the
+       finished battles they were in. The order is total — wins, then fewest
+       battles needed, then name — so exactly one player holds each podium
+       place, the same rule the daily leaderboard follows. */
+    ranking: db.prepare(
+      `SELECT p.player, p.name,
+              (SELECT COUNT(*) FROM battles b
+                WHERE b.winner = p.player AND b.status = 'done') AS wins,
+              (SELECT COUNT(*) FROM battle_players bp
+                 JOIN battles b2 ON b2.battle = bp.battle
+                WHERE bp.player = p.player AND b2.status = 'done') AS played
+         FROM players p
+        WHERE played > 0
+        ORDER BY wins DESC, played ASC, p.name ASC
+        LIMIT 100`),
+
     recentFor: db.prepare(
       `SELECT b.battle, b.code, b.mode, b.status, b.started, b.ended, b.winner, b.par,
               bp.moves, bp.ms, bp.place
@@ -396,9 +412,33 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       .filter((r) => r.waiting > 0);
   }
 
+  function liveList() {
+    const out = [];
+    for (const room of rooms.values()) {
+      if (room.status !== 'live') continue;
+      out.push({
+        battle: room.id,
+        code: room.code,
+        started: room.startAt,
+        players: [...room.seats.values()].map((s) => ({
+          name: s.name,
+          moves: s.moves,
+          done: s.tubes ? tubesDone(s.tubes) : 0,
+          solved: s.done,
+          place: s.place,
+          left: s.left,
+        })),
+      });
+    }
+    out.sort((a, b) => a.started - b.started);
+    return out;
+  }
+
   function broadcastLobby() {
     for (const w of lobbyWatchers) {
-      writeEvent(w.res, 'open', { rooms: openList(w.player), now: Date.now() });
+      writeEvent(w.res, 'open', {
+        rooms: openList(w.player), live: liveList(), now: Date.now(),
+      });
     }
   }
 
@@ -490,6 +530,17 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
   }, HEARTBEAT_MS);
   heart.unref?.();
 
+  /* A watch list that only refreshed when battles started and ended would sit
+     frozen while the battles it lists are being played. Ticked only when there
+     is both something running and somebody looking. */
+  const ticker = setInterval(() => {
+    if (lobbyWatchers.size === 0) return;
+    for (const room of rooms.values()) {
+      if (room.status === 'live') { broadcastLobby(); return; }
+    }
+  }, 4000);
+  ticker.unref?.();
+
   // Anything left 'live' from a previous process is stale on boot: its players
   // are long gone. Rooms are rebuilt lazily on demand instead.
   for (const row of q.liveBattles.all()) {
@@ -519,7 +570,9 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       const watcher = { res, player };
       lobbyWatchers.add(watcher);
       res.on('close', () => lobbyWatchers.delete(watcher));
-      writeEvent(res, 'open', { rooms: openList(player), now: Date.now() });
+      writeEvent(res, 'open', {
+        rooms: openList(player), live: liveList(), now: Date.now(),
+      });
       return true;
     }
 
@@ -527,7 +580,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     if (req.method === 'GET' && p === '/api/battle/open') {
       const player = playerForToken(url.searchParams.get('token') || '');
       if (!player) { send(res, 401, { error: 'Sign in to see open battles.' }); return true; }
-      send(res, 200, { rooms: openList(player), now: Date.now() });
+      send(res, 200, { rooms: openList(player), live: liveList(), now: Date.now() });
       return true;
     }
 
@@ -675,6 +728,19 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
         }
       }
       send(res, 200, { ok: true });
+      return true;
+    }
+
+    /* -- all-time standings -- */
+    if (req.method === 'GET' && p === '/api/battle/ranking') {
+      const rows = q.ranking.all().map((r, i) => ({
+        rank: i + 1,
+        name: r.name,
+        wins: Number(r.wins),
+        played: Number(r.played),
+        you: r.player === player,
+      }));
+      send(res, 200, { ranking: rows });
       return true;
     }
 

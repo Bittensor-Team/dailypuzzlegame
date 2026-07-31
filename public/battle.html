@@ -96,15 +96,27 @@
     <header class="hud-head tabhead">
       <div class="tabs" role="tablist" aria-label="Battles">
         <button type="button" class="tab" id="openTabBtn" role="tab"
-                aria-selected="true" aria-controls="openPane">Open battles</button>
+                aria-selected="true" aria-controls="openPane">Open</button>
+        <button type="button" class="tab" id="liveTabBtn" role="tab"
+                aria-selected="false" aria-controls="livePane" tabindex="-1">Live now</button>
+        <button type="button" class="tab" id="rankTabBtn" role="tab"
+                aria-selected="false" aria-controls="rankPane" tabindex="-1">Leaderboard</button>
         <button type="button" class="tab" id="mineTabBtn" role="tab"
-                aria-selected="false" aria-controls="minePane" tabindex="-1">My battles</button>
+                aria-selected="false" aria-controls="minePane" tabindex="-1">Mine</button>
       </div>
       <span class="live" id="openLive"><i></i>live</span>
     </header>
 
     <div class="tabpane" id="openPane" role="tabpanel" aria-labelledby="openTabBtn">
       <div class="lb-wrap lb-wrap-tall" id="openList"></div>
+    </div>
+
+    <div class="tabpane" id="livePane" role="tabpanel" aria-labelledby="liveTabBtn" hidden>
+      <div class="lb-wrap lb-wrap-tall" id="liveList"></div>
+    </div>
+
+    <div class="tabpane" id="rankPane" role="tabpanel" aria-labelledby="rankTabBtn" hidden>
+      <div class="lb-wrap lb-wrap-tall" id="rankList"></div>
     </div>
 
     <div class="tabpane" id="minePane" role="tabpanel" aria-labelledby="mineTabBtn" hidden>
@@ -135,6 +147,18 @@
     <button type="button" id="startBtn" class="btn btn-primary" hidden>Start now</button>
     <button type="button" id="leaveBtn" class="btn btn-ghost">Leave</button>
   </div>
+</section>
+
+<!-- Spectating --------------------------------------------------------- -->
+<section class="hud watch" id="watch" hidden aria-labelledby="watchTitle">
+  <span class="hud-rail" aria-hidden="true"></span>
+  <header class="hud-head">
+    <h2 id="watchTitle">Watching <b id="watchCode">&mdash;</b></h2>
+    <span class="live" id="watchLive"><i></i>live</span>
+    <button type="button" id="watchLeave" class="btn btn-ghost btn-sm">Back to lobby</button>
+  </header>
+  <p class="rival-foot">Tube fill only &mdash; colours stay private to each player.</p>
+  <div class="rivals rivals-many" id="watchGrid"></div>
 </section>
 
 <!-- Arena ------------------------------------------------------------- -->

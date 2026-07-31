@@ -2258,6 +2258,33 @@ a { cursor: var(--cur-target), pointer; }
 .lb-open .joinbtn:disabled { opacity: 0.4; }
 .lb-open .pill { margin-left: 6px; }
 
+.lb-open .watchbtn { --notch: 6px; padding: 5px 10px; font-size: 11px; white-space: nowrap; }
+.vs {
+  color: var(--ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding: 0 2px;
+}
+
+/* ---------- spectating ---------- */
+
+.watch {
+  max-width: 1180px;
+  margin: 0 auto 22px;
+  padding-bottom: 14px;
+}
+.watch .rivals { padding: 0 14px; }
+.watch-over {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+#watchCode { color: var(--accent); letter-spacing: 0.2em; }
+
 /* ---------- waiting room ---------- */
 
 .room-code {

@@ -1114,17 +1114,8 @@
       return m > 0 ? m + 'm ' + (sec < 10 ? '0' : '') + sec + 's' : sec + 's';
     }
 
-    var CROWN = 'M2 8.4l4.6 3.4L12 3.6l5.4 8.2L22 8.4 20.2 19H3.8L2 8.4z';
-    var CUP = 'M6 3h12v3.2A6 6 0 0 1 13 12.9V16h3.2v2.2H7.8V16H11v-3.1A6 6 0 0 1 6 6.2V3z';
-
-    // Crown for first, cup for second and third — gold, silver, bronze.
-    function rankBadge(rank) {
-      if (rank > 3) return '';
-      var tone = rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze';
-      var label = rank === 1 ? 'First place' : rank === 2 ? 'Second place' : 'Third place';
-      return '<svg class="badge badge-' + tone + '" viewBox="0 0 24 24" role="img" aria-label="' +
-        label + '"><title>' + label + '</title><path d="' + (rank === 1 ? CROWN : CUP) + '"/></svg>';
-    }
+    // Badges live in fx.js so the battle leaderboard shows the very same ones.
+    var rankBadge = window.DCPBadge || function () { return ''; };
 
     function renderPlayerBoard(data) {
       // The table is replaced wholesale, so keep the reader where they were.
