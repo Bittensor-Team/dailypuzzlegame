@@ -638,6 +638,7 @@ h1 .date {
 /* ---------- top bar ---------- */
 
 .topbar {
+  position: relative;   /* the battle link centres against this */
   display: flex;
   align-items: center;
   gap: 16px;
@@ -675,6 +676,39 @@ h1 .date {
   font-variant-numeric: tabular-nums;
   text-shadow: 0 0 10px rgb(var(--accent-rgb) / 0.4);
 }
+/* Centred on the puzzle header itself, not on the space left over. Auto
+   margins would only split the gap with the goal chip's own auto margin,
+   which put it well right of centre. */
+/* Three parts: stats, the battle link, the goal chip. Equal side columns put
+   the link on the header's true centre while still occupying its own space —
+   centring it absolutely was exact but sat on top of "Selected:". The rules
+   are scoped so they outrank the shared .btn block, which sets position and
+   is declared later in this file. */
+.topbar-3up {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+.bar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.topbar .battle-cta {
+  justify-self: center;
+  /* The panel's chamfer forces a big left padding, so the grid's content box
+     is 84px narrower on the left than the right and "centre" landed 42px off
+     the bar's visible middle. Shifting by half the difference is visual only:
+     the column keeps its place, so nothing collides. */
+  transform: translateX(calc((var(--chamfer) + 50px) / -2));
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar .battle-cta:hover { text-decoration: none; }
+.topbar-3up .goal { margin-left: 0; justify-self: end; }
+
 .goal {
   margin-left: auto;
   padding: 5px 12px;
@@ -1906,6 +1940,10 @@ a { cursor: var(--cur-target), pointer; }
 @media (max-width: 760px) {
   /* Keep the countdown clear of the fixed toggle in the corner. */
   .countdown { padding-right: 44px; }
+  /* Too narrow for three columns; the header stacks instead. */
+  .topbar-3up { display: flex; }
+  .topbar-3up .goal { margin-left: auto; }
+  .topbar .battle-cta { transform: none; }
   .controls { flex-wrap: wrap; }
   .hist-summary { order: 3; flex: 1 1 100%; white-space: normal; }
   .histstrip { order: 4; flex: 1 1 100%; }

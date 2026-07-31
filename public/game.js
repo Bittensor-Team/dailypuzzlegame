@@ -589,6 +589,7 @@
       rankBest: document.getElementById('rankBest'),
       rankTries: document.getElementById('rankTries'),
       solvedChip: document.getElementById('solvedChip'),
+      battleLink: document.getElementById('battleLink'),
       champ: document.getElementById('champ'),
       boardWrap: document.getElementById('boardWrap'),
       profileBtn: document.getElementById('profileBtn'),
@@ -894,6 +895,8 @@
       el.selectedLabel.textContent = state.selected === null ? 'None' : 'Tube ' + (state.selected + 1);
       el.undoBtn.disabled = state.history.length === 0;
       el.solvedChip.hidden = !state.won;
+      // Battling is what you unlock by finishing the day's puzzle.
+      el.battleLink.hidden = !state.won;
     }
 
     function save() {
@@ -957,6 +960,7 @@
       }
       save();
       el.solvedChip.hidden = false;
+      el.battleLink.hidden = false;
       fx.solve();
       var outcome = recordWin(date, state.moves, Date.now());
       var stats = outcome.stats;

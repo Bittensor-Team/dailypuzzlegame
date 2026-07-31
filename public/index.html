@@ -41,7 +41,6 @@
   <header class="hud-head">
     <h2 id="rankTitle">Today&rsquo;s rank</h2>
     <span class="hud-tag" id="rankTag">standby</span>
-    <a class="btn btn-primary btn-sm" href="battle.html">Battle</a>
     <button type="button" id="profileBtn" class="btn btn-ghost btn-sm">Profile</button>
   </header>
   <div class="rank-row">
@@ -82,11 +81,15 @@
 <div class="game" id="game">
   <canvas class="worldmap" id="earth" aria-hidden="true"></canvas>
   <span class="hud-hatch" aria-hidden="true"></span>
-  <header class="topbar">
-    <span class="brand">Color Puzzle</span>
-    <span class="stat">Moves: <b id="moveCount">0</b></span>
-    <span class="stat">Selected: <b id="selectedLabel">None</b></span>
-    <span class="solved-chip" id="solvedChip" hidden>&#10003; Solved</span>
+  <header class="topbar topbar-3up">
+    <span class="bar-left">
+      <span class="brand">Color Puzzle</span>
+      <span class="stat">Moves: <b id="moveCount">0</b></span>
+      <span class="stat">Selected: <b id="selectedLabel">None</b></span>
+      <span class="solved-chip" id="solvedChip" hidden>&#10003; Solved</span>
+    </span>
+    <a class="btn btn-primary btn-sm battle-cta" id="battleLink" href="battle.html" hidden
+       title="Race another player on a fresh board">Battle &rsaquo;</a>
     <span class="goal">Goal: Group each color</span>
   </header>
 
