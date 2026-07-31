@@ -2175,6 +2175,16 @@ a { cursor: var(--cur-target), pointer; }
 }
 .hudsel-opt[aria-selected="true"]:hover { background: var(--accent); }
 
+/* ---------- open battles ---------- */
+
+.openblock { position: relative; margin-top: 6px; }
+.openblock .live { position: absolute; top: 2px; right: 2px; }
+
+.lb-open td.joincell { text-align: right; padding-right: 4px; }
+.lb-open .joinbtn { --notch: 6px; padding: 5px 12px; font-size: 11px; }
+.lb-open .joinbtn:disabled { opacity: 0.4; }
+.lb-open .pill { margin-left: 6px; }
+
 /* ---------- waiting room ---------- */
 
 .room-code {

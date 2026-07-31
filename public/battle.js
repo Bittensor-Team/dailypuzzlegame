@@ -133,6 +133,7 @@
    'resultOverlay', 'resultTitle', 'resultLine', 'resultTable', 'againBtn', 'authOverlay',
    'authForm', 'authName', 'authPass', 'authNote', 'authSubmit', 'authTitle', 'authBlurb',
    'authSwap', 'authSwapText', 'histBlock', 'battleHistory', 'parStat', 'parVal',
+   'openList', 'openLive',
    'arenaLive', 'modeLabel', 'footYear'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
@@ -391,6 +392,56 @@
   /* Stream                                                              */
   /* ------------------------------------------------------------------ */
 
+  /* The lobby list is pushed, not polled: a room that appears while you are
+     looking at the screen should be clickable straight away. */
+  var lobbyStream = null;
+
+  function connectLobby() {
+    if (lobbyStream || !session.token()) return;
+    lobbyStream = new EventSource('/api/battle/lobby?token=' +
+      encodeURIComponent(session.token()));
+    lobbyStream.addEventListener('open', function (e) {
+      el.openLive.classList.remove('off');
+      try { renderOpen(JSON.parse(e.data).rooms); } catch (err) { /* torn frame */ }
+    });
+    lobbyStream.onerror = function () { el.openLive.classList.add('off'); };
+  }
+
+  function disconnectLobby() {
+    if (!lobbyStream) return;
+    lobbyStream.close();
+    lobbyStream = null;
+  }
+
+  function renderOpen(rooms) {
+    if (!rooms || rooms.length === 0) {
+      el.openList.innerHTML =
+        '<p class="lb-empty">No open battles. Create a room and it appears here for everyone.</p>';
+      return;
+    }
+    el.openList.innerHTML = '<table class="lb lb-open"><thead><tr>' +
+      '<th>Host</th><th class="moves">Seats</th><th class="tries">Code</th><th></th>' +
+      '</tr></thead><tbody>' + rooms.map(function (r) {
+        var full = r.waiting <= 0;
+        return '<tr class="' + (r.yours ? 'me' : '') + '">' +
+          '<td class="date">' + esc(r.host) + (r.yours ? ' <span class="pb">you</span>' : '') +
+          (r.mode === 'quick' ? ' <span class="pill">quick</span>' : '') + '</td>' +
+          '<td class="moves">' + r.players + '/' + r.size + '</td>' +
+          '<td class="tries">' + esc(r.code) + '</td>' +
+          '<td class="joincell"><button type="button" class="btn btn-primary btn-xs joinbtn" ' +
+          'data-code="' + esc(r.code) + '"' + (full ? ' disabled' : '') + '>' +
+          (r.yours ? 'Rejoin' : 'Join') + '</button></td></tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  el.openList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.joinbtn');
+    if (!btn) return;
+    note(el.lobbyNote, 'Joining ' + btn.getAttribute('data-code') + '\u2026');
+    post('/api/battle/join', { token: session.token(), code: btn.getAttribute('data-code') })
+      .then(enter);
+  });
+
   function connect(battleId) {
     if (stream) { stream.close(); stream = null; }
     var url = '/api/battle/stream?battle=' + encodeURIComponent(battleId) +
@@ -585,6 +636,7 @@
       return;
     }
     note(el.lobbyNote, '');
+    disconnectLobby();
     apply(result.data);
     connect(result.data.battle);
   }
@@ -619,6 +671,7 @@
     history.replaceState(null, '', 'battle.html');
     show('lobby');
     loadHistory();
+    connectLobby();
   }
 
   el.leaveBtn.addEventListener('click', leave);
@@ -728,6 +781,7 @@
     el.whoamiChip.hidden = false;
     el.whoamiChip.textContent = session.name() || 'signed in';
     loadHistory();
+    connectLobby();
 
     // An invite link drops you straight into the room it names.
     var code = new URLSearchParams(location.search).get('b');

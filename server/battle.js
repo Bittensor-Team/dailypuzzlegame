@@ -106,6 +106,16 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       `SELECT player, src, dst, at FROM battle_moves WHERE battle = ? ORDER BY id ASC`),
 
     liveBattles: db.prepare(`SELECT * FROM battles WHERE status IN ('open', 'live')`),
+
+    /* Rooms anyone may walk into. Read from the database rather than the
+       in-memory rooms so a room that outlived a restart is still listed. */
+    openRooms: db.prepare(
+      `SELECT b.battle, b.code, b.mode, b.size, b.created, b.host, p.name AS hostname,
+              (SELECT COUNT(*) FROM battle_players bp WHERE bp.battle = b.battle) AS players
+         FROM battles b LEFT JOIN players p ON p.player = b.host
+        WHERE b.status = 'open'
+        ORDER BY b.created ASC
+        LIMIT 40`),
     recentFor: db.prepare(
       `SELECT b.battle, b.code, b.mode, b.status, b.started, b.ended, b.winner, b.par,
               bp.moves, bp.ms, bp.place
@@ -264,6 +274,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     }
     q.setStatus.run('live', room.startAt, room.id);
     broadcast(room);
+    broadcastLobby();   // a started room is no longer joinable
   }
 
   /* First to group every colour takes it. Everyone else is placed by how far
@@ -289,6 +300,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     });
     q.finish.run(room.ended, winner, room.id);
     broadcast(room);
+    broadcastLobby();
     // Leave the room up briefly so late frames and the result screen land.
     setTimeout(() => rooms.delete(room.id), 60e3).unref?.();
   }
@@ -343,6 +355,31 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     };
   }
 
+  /* Everyone sitting on the lobby screen, waiting to be told a room appeared.
+     Kept separate from a room's watchers: these people are not in a battle. */
+  const lobbyWatchers = new Set();
+
+  function openList(forPlayer) {
+    return q.openRooms.all()
+      .map((r) => ({
+        code: r.code,
+        mode: r.mode,
+        host: r.hostname || 'someone',
+        players: Number(r.players),
+        size: Number(r.size),
+        waiting: Number(r.size) - Number(r.players),
+        created: Number(r.created),
+        yours: r.host === forPlayer,
+      }))
+      .filter((r) => r.waiting > 0);
+  }
+
+  function broadcastLobby() {
+    for (const w of lobbyWatchers) {
+      writeEvent(w.res, 'open', { rooms: openList(w.player), now: Date.now() });
+    }
+  }
+
   function broadcast(room) {
     for (const w of room.watchers) {
       writeEvent(w.res, 'state', view(room, w.player));
@@ -380,6 +417,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
   // away is awarded to whoever stayed rather than hanging forever.
   const sweeper = setInterval(() => {
     const now = Date.now();
+    let listChanged = false;
     for (const room of [...rooms.values()]) {
       let changed = false;
       for (const seat of room.seats.values()) {
@@ -396,18 +434,23 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       if (present.length === 0 && now - room.created > GONE_MS) {
         if (room.status !== 'done') q.kill.run(now, room.id);
         rooms.delete(room.id);
+        listChanged = true;
         continue;
       }
       if (room.status === 'open' && now - room.created > OPEN_TTL_MS) {
         q.kill.run(now, room.id);
         rooms.delete(room.id);
+        listChanged = true;
         continue;
       }
       if (changed) broadcast(room);
     }
     for (const row of q.staleOpen.all(now - OPEN_TTL_MS)) {
-      if (!rooms.has(row.battle)) q.kill.run(now, row.battle);
+      if (!rooms.has(row.battle)) { q.kill.run(now, row.battle); listChanged = true; }
     }
+    // An abandoned room that just got swept must leave the list, or people
+    // keep clicking a battle that is no longer there.
+    if (listChanged) broadcastLobby();
   }, 10e3);
   sweeper.unref?.();
 
@@ -416,6 +459,11 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       for (const w of room.watchers) {
         try { w.res.write(': ping\n\n'); } catch { /* closed */ }
       }
+    }
+    // Lobby sockets sit idle whenever nobody opens a room, which is exactly
+    // when a proxy decides they are dead.
+    for (const w of lobbyWatchers) {
+      try { w.res.write(': ping\n\n'); } catch { /* closed */ }
     }
   }, HEARTBEAT_MS);
   heart.unref?.();
@@ -434,6 +482,32 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     const post = req.method === 'POST';
     const p = url.pathname;
     if (p.indexOf('/api/battle') !== 0) return false;
+
+    /* -- live list of rooms anyone can walk into -- */
+    if (req.method === 'GET' && p === '/api/battle/lobby') {
+      const player = playerForToken(url.searchParams.get('token') || '');
+      if (!player) { send(res, 401, { error: 'Sign in to see open battles.' }); return true; }
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-store, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write('retry: 3000\n\n');
+      const watcher = { res, player };
+      lobbyWatchers.add(watcher);
+      res.on('close', () => lobbyWatchers.delete(watcher));
+      writeEvent(res, 'open', { rooms: openList(player), now: Date.now() });
+      return true;
+    }
+
+    /* -- the same list, for a client whose stream is down -- */
+    if (req.method === 'GET' && p === '/api/battle/open') {
+      const player = playerForToken(url.searchParams.get('token') || '');
+      if (!player) { send(res, 401, { error: 'Sign in to see open battles.' }); return true; }
+      send(res, 200, { rooms: openList(player), now: Date.now() });
+      return true;
+    }
 
     /* -- live stream -- */
     if (req.method === 'GET' && p === '/api/battle/stream') {
@@ -465,6 +539,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       size = Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(size)));
       leaveEverything(player);
       const room = createRoom({ host: player, hostName: myName, size, mode: 'room' });
+      broadcastLobby();
       send(res, 200, view(room, player));
       return true;
     }
@@ -495,6 +570,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
         return true;
       }
       const room = createRoom({ host: player, hostName: myName, size: 2, mode: 'quick' });
+      broadcastLobby();
       send(res, 200, view(room, player));
       return true;
     }
@@ -562,6 +638,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
           q.dropPlayer.run(room.id, player);
           if (room.seats.size === 0) { q.kill.run(Date.now(), room.id); rooms.delete(room.id); }
           else broadcast(room);
+          broadcastLobby();
         } else if (seat) {
           seat.left = true;
           broadcast(room);
@@ -597,7 +674,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     q.addPlayer.run(room.id, player, Date.now());
     // A full room starts itself; nobody should have to press a button.
     if (room.seats.size >= room.size) startBattle(room);
-    else broadcast(room);
+    else { broadcast(room); broadcastLobby(); }
     return { ok: true };
   }
 
@@ -610,6 +687,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
         q.dropPlayer.run(room.id, player);
         if (room.seats.size === 0) { q.kill.run(Date.now(), room.id); rooms.delete(room.id); }
         else broadcast(room);
+        broadcastLobby();
       }
     }
   }
