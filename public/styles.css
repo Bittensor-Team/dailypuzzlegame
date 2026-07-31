@@ -2231,82 +2231,72 @@ a { cursor: var(--cur-target), pointer; }
 .pill-win  { color: var(--accent); border-color: rgb(var(--accent-rgb) / 0.6); }
 .pill-gone { opacity: 0.6; }
 
-/* ---------- arena ---------- */
+/* ---------- arena ----------
+   The player gets the daily puzzle's own panel, unchanged: topbar, board,
+   controls. Opponents sit in a narrow column beside it, the way the daily
+   page puts its instrumentation next to the puzzle. */
 
-.arena {
-  position: relative;
-  max-width: 1400px;
-  margin: 0 auto 24px;
+.arena { position: relative; }
+
+.battle-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 760px) minmax(240px, 300px);
+  gap: 12px;
+  justify-content: center;
+  align-items: start;
   padding: 0 12px;
 }
 
-.arena-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-  border: 1px solid var(--line);
-  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.1));
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
-}
-.arena-code {
+.rivalbox { padding-bottom: 12px; }
+.rival-foot {
+  margin: 10px 14px 0;
   font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-dim);
+  opacity: 0.75;
 }
-.arena-code b { color: var(--accent); letter-spacing: 0.2em; }
-.arena-bar .btn { margin-left: auto; }
-.arena-bar .btn + .btn { margin-left: 0; }
 
-.arena-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  align-items: start;
-}
-.arena-duel .arena-grid { max-width: 1180px; margin: 0 auto; }
-/* A duel gets two equal halves; a crowd gets a big board and a wall of
-   thumbnails beside it. */
-.arena-duel .arena-grid { grid-template-columns: 1fr 1fr; }
+.rivals { display: grid; gap: 12px; padding: 0 12px; }
 
 .side {
-  border: 1px solid var(--line);
-  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.06));
-  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  border: 1px solid var(--line-soft);
+  background: rgb(var(--panel-rgb) / 0.35);
   padding-bottom: 10px;
 }
-.side-me { border-color: rgb(var(--accent-rgb) / 0.45); }
 .side-rival.is-solved { border-color: rgb(var(--good-rgb) / 0.6); }
 
 .side-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding: 11px 14px;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 9px 11px 0;
 }
 .side-name {
   font-family: var(--font-mono);
-  font-size: 13px;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 .side-meta {
-  margin-left: auto;
+  margin: 4px 0 0;
+  padding: 0 11px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--ink-dim);
 }
 .side-meta b { color: var(--ink); }
 
 .side-bar {
   height: 4px;
-  margin: 0 14px;
+  margin: 8px 11px 0;
   background: var(--slot-bg);
   overflow: hidden;
 }
@@ -2318,35 +2308,35 @@ a { cursor: var(--cur-target), pointer; }
   transition: width 0.25s ease;
 }
 
-.rivals { display: grid; gap: 14px; }
-.rivals-many { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
-
-/* The opponent's board is a smaller, non-interactive copy of the same grid. */
-.board-mini { gap: 6px; padding: 12px; }
+/* An opponent's board, drawn from fill levels alone. No colour reaches the
+   browser, so there is nothing here to read a solution off. */
+.board-mini {
+  gap: 4px;
+  padding: 9px 11px 0;
+  grid-template-columns: repeat(6, 1fr);
+}
 .board-mini .tube {
-  max-width: 62px;
-  gap: 3px;
-  padding: 4px;
+  max-width: none;
+  gap: 2px;
+  padding: 3px;
   cursor: default;
   animation: none;
 }
-.board-mini .block { height: 14px; }
-.board-mini .slot  { height: 14px; border-radius: 4px; }
-.board-mini .tag   { display: none; }
-.rivals-many .board-mini .tube { max-width: 44px; }
+.board-mini .block,
+.board-mini .slot { height: 7px; border-radius: 3px; }
 
-/* In a duel the opponent is not a thumbnail — the two boards face each other
-   as equals, which is the whole point of watching them play. */
-.arena-duel .board-mini { gap: 10px; padding: 16px; }
-.arena-duel .board-mini .tube { max-width: 92px; gap: 5px; padding: 6px; }
-.arena-duel .board-mini .block,
-.arena-duel .board-mini .slot { height: 21px; }
-.arena-duel .rivals { align-content: start; }
+.block-mute {
+  --c: rgb(var(--accent-rgb) / 0.45);
+  box-shadow: none;
+}
+.block-mute::before { display: none; }
 
-/* Flush against the buttons the standings read as if the two collide. */
-#resultOverlay .lb-wrap { margin-bottom: 18px; }
-.rivals-many .board-mini .block,
-.rivals-many .board-mini .slot { height: 10px; }
+/* A finished tube still reads as finished — in the accent, not in its colour. */
+.tube-sealed {
+  border-color: rgb(var(--good-rgb) / 0.75);
+  background: rgb(var(--good-rgb) / 0.08);
+}
+.tube-sealed .block-mute { --c: rgb(var(--good-rgb) / 0.75); }
 
 .board.shake { animation: nudge 0.26s ease; }
 
@@ -2394,7 +2384,9 @@ a { cursor: var(--cur-target), pointer; }
 
 .live.off i { background: #ff6470; box-shadow: none; animation: none; }
 
-@media (max-width: 900px) {
-  .arena-duel .arena-grid { grid-template-columns: 1fr; }
-  .board-mini .tube { max-width: 52px; }
+/* Below the two-column width the opponents drop underneath, the same way the
+   daily page stacks its panels. */
+@media (max-width: 1080px) {
+  .battle-layout { grid-template-columns: min(760px, 100%); }
+  .rivals { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 }

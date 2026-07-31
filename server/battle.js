@@ -305,9 +305,16 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       player: seat.player,
       name: seat.name,
       you,
-      // The opponent's board is mirrored in full colour: both sides are racing
-      // the same deal, so this is tension, not information they lack.
-      tubes: seat.tubes ? seat.tubes.map((t) => t.slice()) : null,
+      // Only your own colours are ever sent. An opponent is described by shape
+      // alone — how full each tube is and whether it is finished. Everyone is
+      // racing the identical deal, so sending their colours would hand a stuck
+      // player the leader's solution, and hiding it in CSS would not: it would
+      // still be sitting in the page for anyone who opened devtools.
+      tubes: you && seat.tubes ? seat.tubes.map((t) => t.slice()) : null,
+      shape: you || !seat.tubes ? null : seat.tubes.map((t) => ({
+        n: t.length,
+        done: t.length === game.CAPACITY && game.isTubeDone(t),
+      })),
       moves: seat.moves,
       done,
       percent: Math.round((100 * done) / total),

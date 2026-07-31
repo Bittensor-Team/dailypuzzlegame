@@ -120,31 +120,46 @@
 
 <!-- Arena ------------------------------------------------------------- -->
 <section class="arena" id="arena" hidden aria-label="Battle arena">
-  <div class="arena-bar">
-    <span class="stat">Moves: <b id="myMoves">0</b></span>
-    <span class="stat">Selected: <b id="mySelected">None</b></span>
-    <span class="arena-code">Battle <b id="arenaCode">&mdash;</b></span>
-    <span class="stat" id="parStat" hidden>Par: <b id="parVal">&mdash;</b></span>
-    <span class="live" id="arenaLive"><i></i>live</span>
-    <button type="button" id="undoBtn2" class="btn btn-primary btn-sm">Undo</button>
-    <button type="button" id="quitBtn" class="btn btn-ghost btn-sm">Forfeit</button>
-  </div>
+  <div class="battle-layout">
 
-  <div class="arena-grid" id="arenaGrid">
-    <div class="side side-me">
-      <header class="side-head">
-        <span class="side-name" id="myName">You</span>
-        <span class="side-meta"><b id="myDone">0</b>/10 done</span>
+    <!-- The player's own panel: the same structure as the daily puzzle. -->
+    <div class="game" id="game">
+      <span class="hud-hatch" aria-hidden="true"></span>
+      <header class="topbar">
+        <span class="brand">Battle <b id="arenaCode">&mdash;</b></span>
+        <span class="stat">Moves: <b id="myMoves">0</b></span>
+        <span class="stat">Selected: <b id="mySelected">None</b></span>
+        <span class="solved-chip" id="solvedChip" hidden>&#10003; Solved</span>
+        <span class="goal" id="parStat" hidden>Par: <b id="parVal">&mdash;</b></span>
       </header>
-      <div class="board board-live" id="myBoard" aria-label="Your board"></div>
-      <div class="side-bar"><span class="side-fill" id="myFill"></span></div>
-    </div>
-    <div class="rivals" id="rivals"></div>
-  </div>
 
-  <div class="countdown-veil" id="veil" hidden>
-    <p class="veil-num" id="veilNum">3</p>
-    <p class="veil-cap">Get ready</p>
+      <main class="board" id="myBoard" aria-label="Your board"></main>
+
+      <footer class="controls">
+        <button type="button" id="quitBtn" class="btn btn-ghost">Forfeit</button>
+        <p class="hist-summary" id="myProgress" role="status"></p>
+        <div class="controls-right">
+          <button type="button" id="undoBtn2" class="btn btn-primary">Undo</button>
+        </div>
+      </footer>
+
+      <div class="countdown-veil" id="veil" hidden>
+        <p class="veil-num" id="veilNum">3</p>
+        <p class="veil-cap">Get ready</p>
+      </div>
+    </div>
+
+    <!-- Opponents, live, at a glance. Shape only — never their colours. -->
+    <aside class="hud rivalbox" aria-labelledby="rivalsTitle">
+      <span class="hud-rail" aria-hidden="true"></span>
+      <header class="hud-head">
+        <h2 id="rivalsTitle">Opponents</h2>
+        <span class="live" id="arenaLive"><i></i>live</span>
+      </header>
+      <div class="rivals" id="rivals"></div>
+      <p class="rival-foot">Tube fill only &mdash; colours stay private.</p>
+    </aside>
+
   </div>
 </section>
 

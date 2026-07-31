@@ -129,7 +129,7 @@
   ['themeBtn', 'whoamiChip', 'lobby', 'lobbyNote', 'quickBtn', 'createBtn', 'sizeSel',
    'joinForm', 'joinCode', 'room', 'roomCode', 'roomTag', 'roster', 'roomNote', 'startBtn',
    'leaveBtn', 'copyLinkBtn', 'arena', 'arenaCode', 'myMoves', 'mySelected', 'myBoard',
-   'myName', 'myDone', 'myFill', 'rivals', 'veil', 'veilNum', 'undoBtn2', 'quitBtn',
+   'myProgress', 'solvedChip', 'rivals', 'veil', 'veilNum', 'undoBtn2', 'quitBtn',
    'resultOverlay', 'resultTitle', 'resultLine', 'resultTable', 'againBtn', 'authOverlay',
    'authForm', 'authName', 'authPass', 'authNote', 'authSubmit', 'authTitle', 'authBlurb',
    'authSwap', 'authSwapText', 'histBlock', 'battleHistory', 'parStat', 'parVal',
@@ -230,27 +230,18 @@
     el.mySelected.textContent = selected === null ? 'None' : 'Tube ' + (selected + 1);
   }
 
-  // The palette lives in the stylesheet; a finished tube's glow colour has to
-  // be a real colour, so it is resolved once here rather than guessed.
-  var COLOR_HEX = (function () {
-    var root = getComputedStyle(document.documentElement);
-    var out = [];
-    for (var c = 0; c < COLOR_COUNT; c++) {
-      out.push((root.getPropertyValue('--c' + c) || '').trim() || '#22e0ff');
-    }
-    return out;
-  })();
-
-  // A rival board is read-only, so it is plain markup rather than buttons.
+  /* A rival is drawn from shape alone — the server sends how full each tube is
+     and whether it is finished, never which colours are in it. Read-only, so
+     plain markup rather than buttons. */
   function rivalHTML(p) {
-    var tubes = p.tubes || [];
+    var shape = p.shape || [];
     var cells = '';
-    for (var i = 0; i < tubes.length; i++) {
-      var done = tubes[i].length === CAPACITY && isTubeDone(tubes[i]);
-      // The done colour is applied through the CSSOM after insertion: a
-      // style attribute in this markup would be refused by the page's CSP.
-      cells += '<div class="tube tube-mini' + (done ? ' done' : '') + '"' +
-        (done ? ' data-done="' + tubes[i][0] + '"' : '') + '>' + tubeHTML(tubes[i], 0) + '</div>';
+    for (var i = 0; i < shape.length; i++) {
+      var blocks = '';
+      for (var b = 0; b < shape[i].n; b++) blocks += '<div class="block block-mute"></div>';
+      for (var e = 0; e < CAPACITY - shape[i].n; e++) blocks += '<div class="slot"></div>';
+      cells += '<div class="tube tube-mini' + (shape[i].done ? ' tube-sealed' : '') + '">' +
+        blocks + '</div>';
     }
     var status = p.solved ? '<span class="pill pill-win">solved</span>'
       : p.left ? '<span class="pill pill-gone">left</span>'
@@ -258,39 +249,34 @@
       : '<span class="pill pill-gone">away</span>';
     return '<article class="side side-rival' + (p.solved ? ' is-solved' : '') + '">' +
       '<header class="side-head"><span class="side-name">' + esc(p.name) + '</span>' + status +
-      '<span class="side-meta"><b>' + p.moves + '</b> moves &middot; <b>' + p.done + '</b>/10</span>' +
       '</header>' +
+      '<p class="side-meta"><b>' + p.moves + '</b> moves &middot; <b>' + p.done + '</b>/10 done</p>' +
       '<div class="board board-mini">' + cells + '</div>' +
       '<div class="side-bar"><span class="side-fill" data-pct="' + p.percent + '"></span></div>' +
       '</article>';
   }
 
-  // Everything a style attribute would have carried, applied through the
-  // CSSOM instead, which the CSP allows.
+  // A style attribute would be refused by the page's CSP, so the bar width is
+  // applied through the CSSOM instead.
   function paintRivalStyles() {
     el.rivals.querySelectorAll('.side-fill[data-pct]').forEach(function (bar) {
       bar.style.width = bar.getAttribute('data-pct') + '%';
-    });
-    el.rivals.querySelectorAll('.tube-mini[data-done]').forEach(function (tube) {
-      tube.style.setProperty('--done-c', COLOR_HEX[Number(tube.getAttribute('data-done'))]);
     });
   }
 
   function renderArena() {
     var mine = me();
     if (!mine) return;
-    el.myName.textContent = mine.name + ' (you)';
     el.myMoves.textContent = String(mine.moves);
-    el.myDone.textContent = String(mine.done);
-    el.myFill.style.width = mine.percent + '%';
     el.arenaCode.textContent = view.code;
+    el.solvedChip.hidden = !mine.solved;
+    el.myProgress.innerHTML = '<b>' + mine.done + '</b>/10 tubes done';
     if (view.par) { el.parStat.hidden = false; el.parVal.textContent = String(view.par); }
 
     var rivals = view.players.filter(function (p) { return !p.you; });
     el.rivals.innerHTML = rivals.map(rivalHTML).join('');
     paintRivalStyles();
     el.rivals.classList.toggle('rivals-many', rivals.length > 1);
-    el.arena.classList.toggle('arena-duel', rivals.length === 1);
     renderMyBoard();
   }
 
