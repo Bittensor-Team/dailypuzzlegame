@@ -481,6 +481,114 @@
   });
 
   /* ------------------------------------------------------------------ */
+  /* HUD dropdown                                                        */
+  /* ------------------------------------------------------------------ */
+
+  /* Replaces a native <select>, whose popup the browser paints in its own
+     colours — white on white against this theme. Owning the list means owning
+     the keyboard too, so everything a select gave for free is rebuilt here. */
+  function hudSelect(root) {
+    var button = root.querySelector('.hudsel-btn');
+    var label = root.querySelector('.hudsel-btn span:first-child');
+    var list = root.querySelector('.hudsel-list');
+    var opts = [].slice.call(root.querySelectorAll('.hudsel-opt'));
+    var value = null;
+    var active = 0;
+
+    function paint() {
+      opts.forEach(function (o, i) {
+        var chosen = o.getAttribute('data-value') === value;
+        o.setAttribute('aria-selected', chosen ? 'true' : 'false');
+        o.classList.toggle('active', i === active);
+        if (chosen) label.innerHTML = o.innerHTML;
+      });
+    }
+
+    /* The list lives at the end of <body> while open. Inside the card it was
+       cut off by the card's clip-path, which clips descendants as well. */
+    function place() {
+      var r = button.getBoundingClientRect();
+      list.style.left = r.left + 'px';
+      list.style.width = r.width + 'px';
+      var room = window.innerHeight - r.bottom;
+      var wanted = Math.min(list.scrollHeight, 244);
+      if (room < wanted + 12 && r.top > wanted + 12) {
+        list.style.top = (r.top - wanted - 5) + 'px';   // flip up near the fold
+      } else {
+        list.style.top = (r.bottom + 5) + 'px';
+      }
+    }
+
+    function open() {
+      document.body.appendChild(list);
+      list.hidden = false;
+      root.classList.add('open');
+      button.setAttribute('aria-expanded', 'true');
+      active = Math.max(0, opts.findIndex(function (o) { return o.getAttribute('data-value') === value; }));
+      paint();
+      place();
+      opts[active].scrollIntoView({ block: 'nearest' });
+    }
+
+    function close(refocus) {
+      list.hidden = true;
+      root.classList.remove('open');
+      button.setAttribute('aria-expanded', 'false');
+      if (refocus) button.focus();
+    }
+
+    // A fixed layer does not follow its button, so it closes rather than
+    // hovering somewhere wrong.
+    window.addEventListener('resize', function () { if (!list.hidden) close(false); });
+    window.addEventListener('scroll', function () { if (!list.hidden) close(false); }, true);
+
+    function choose(i) {
+      value = opts[i].getAttribute('data-value');
+      active = i;
+      paint();
+      close(true);
+    }
+
+    button.addEventListener('click', function () {
+      if (list.hidden) open(); else close(false);
+    });
+
+    opts.forEach(function (o, i) {
+      o.addEventListener('click', function () { choose(i); });
+      o.addEventListener('mousemove', function () { active = i; paint(); });
+    });
+
+    root.addEventListener('keydown', function (e) {
+      var openNow = !list.hidden;
+      if (e.key === 'Escape' && openNow) { close(true); e.preventDefault(); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && openNow) { choose(active); e.preventDefault(); return; }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!openNow) { open(); return; }
+        active = (active + (e.key === 'ArrowDown' ? 1 : opts.length - 1)) % opts.length;
+        paint();
+        opts[active].scrollIntoView({ block: 'nearest' });
+        return;
+      }
+      if (e.key === 'Home' && openNow) { active = 0; paint(); e.preventDefault(); }
+      if (e.key === 'End' && openNow) { active = opts.length - 1; paint(); e.preventDefault(); }
+    });
+
+    // Clicking anywhere else closes it, the way a real select behaves.
+    document.addEventListener('click', function (e) {
+      if (!list.hidden && !root.contains(e.target)) close(false);
+    });
+
+    value = (opts.find(function (o) { return o.getAttribute('aria-selected') === 'true'; }) || opts[0])
+      .getAttribute('data-value');
+    paint();
+
+    return { value: function () { return value; } };
+  }
+
+  var sizePick = hudSelect(el.sizeSel);
+
+  /* ------------------------------------------------------------------ */
   /* Lobby actions                                                       */
   /* ------------------------------------------------------------------ */
 
@@ -501,7 +609,7 @@
   });
 
   el.createBtn.addEventListener('click', function () {
-    post('/api/battle/create', { token: session.token(), size: Number(el.sizeSel.value) }).then(enter);
+    post('/api/battle/create', { token: session.token(), size: Number(sizePick.value()) }).then(enter);
   });
 
   el.joinForm.addEventListener('submit', function (e) {

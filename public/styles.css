@@ -1872,6 +1872,14 @@ a { cursor: var(--cur-target), pointer; }
 :root[data-theme="light"] .panel {
   box-shadow: 0 18px 44px rgb(10 36 54 / 0.22);
 }
+/* Emissive glow is for the dark ground; on white it reads as a smudge. */
+:root[data-theme="light"] .hudsel-list {
+  box-shadow: 0 1px 2px rgb(10 36 54 / 0.08), 0 12px 30px rgb(10 36 54 / 0.16);
+}
+:root[data-theme="light"] .hudsel-btn {
+  background: #fff;
+  border-color: rgb(var(--accent-rgb) / 0.3);
+}
 :root[data-theme="light"] .tube.selected {
   box-shadow: 0 0 0 2px var(--accent), 0 6px 14px rgb(10 36 54 / 0.18);
 }
@@ -2083,6 +2091,89 @@ a { cursor: var(--cur-target), pointer; }
   text-transform: uppercase;
   max-width: 140px;
 }
+
+/* ---------- HUD dropdown ----------
+   A native <select> renders its popup with the browser's colours, so on a dark
+   page the list came out a white panel with white text. This one is ours, so
+   it takes the theme like everything else. */
+
+.hudsel { position: relative; flex: 1 1 160px; min-width: 0; }
+
+.hudsel-btn {
+  --notch: 8px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.35);
+  border-radius: 2px;
+  background: rgb(var(--accent-rgb) / 0.05);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+  clip-path: polygon(
+    var(--notch) 0, 100% 0,
+    100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%,
+    0 100%, 0 var(--notch)
+  );
+  transition: border-color 0.14s ease, background 0.14s ease;
+}
+.hudsel-btn:hover { border-color: rgb(var(--accent-rgb) / 0.7); background: rgb(var(--accent-rgb) / 0.12); }
+.hudsel-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 16px rgb(var(--accent-rgb) / 0.3);
+}
+.hudsel-caret { color: var(--accent); font-size: 10px; transition: transform 0.16s ease; }
+.hudsel.open .hudsel-caret { transform: rotate(180deg); }
+.hudsel.open .hudsel-btn { border-color: var(--accent); }
+
+/* Fixed, and moved to the end of <body> when it opens: the lobby card is
+   clipped with clip-path, which clips descendants too, and the list came out
+   sliced off after the first option. The calendar solves it the same way. */
+.hudsel-list {
+  position: fixed;
+  z-index: 80;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  max-height: 244px;
+  overflow-y: auto;
+  background:
+    linear-gradient(180deg, rgb(var(--accent-rgb) / 0.08), transparent 60px),
+    var(--panel-bg);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 0 30px rgb(var(--accent-rgb) / 0.08),
+    0 0 30px rgb(var(--accent-rgb) / 0.22),
+    0 16px 40px rgba(0, 0, 0, 0.7);
+}
+
+.hudsel-opt {
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  cursor: pointer;
+}
+.hudsel-opt:hover,
+.hudsel-opt.active {
+  background: rgb(var(--accent-rgb) / 0.22);
+  border-color: var(--accent);
+}
+.hudsel-opt[aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.hudsel-opt[aria-selected="true"]:hover { background: var(--accent); }
 
 /* ---------- waiting room ---------- */
 

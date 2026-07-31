@@ -50,17 +50,26 @@
     <div class="lobby-card">
       <h3 class="lb-h3">Private room</h3>
       <p class="lobby-note">Get a code to share. Starts by itself once the room is full.</p>
-      <label class="fld fld-inline">
-        <span>Players</span>
-        <select id="sizeSel" class="txt txt-sm">
-          <option value="2" selected>2 &mdash; duel</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-          <option value="6">6</option>
-          <option value="8">8</option>
-        </select>
-      </label>
+      <div class="fld fld-inline">
+        <span id="sizeLabel">Players</span>
+        <!-- A native <select> draws its popup with the browser's own colours,
+             which came out white-on-white here. This is a listbox we own. -->
+        <div class="hudsel" id="sizeSel">
+          <button type="button" class="hudsel-btn" id="sizeBtn" aria-haspopup="listbox"
+                  aria-expanded="false" aria-labelledby="sizeLabel sizeBtn">
+            <span id="sizeText">2 &mdash; duel</span>
+            <span class="hudsel-caret" aria-hidden="true">&#9662;</span>
+          </button>
+          <ul class="hudsel-list" id="sizeList" role="listbox" aria-labelledby="sizeLabel" hidden>
+            <li class="hudsel-opt" role="option" data-value="2" aria-selected="true">2 &mdash; duel</li>
+            <li class="hudsel-opt" role="option" data-value="3" aria-selected="false">3 players</li>
+            <li class="hudsel-opt" role="option" data-value="4" aria-selected="false">4 players</li>
+            <li class="hudsel-opt" role="option" data-value="5" aria-selected="false">5 players</li>
+            <li class="hudsel-opt" role="option" data-value="6" aria-selected="false">6 players</li>
+            <li class="hudsel-opt" role="option" data-value="8" aria-selected="false">8 players</li>
+          </ul>
+        </div>
+      </div>
       <button type="button" id="createBtn" class="btn btn-primary">Create room</button>
     </div>
 
