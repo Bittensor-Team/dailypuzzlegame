@@ -1243,7 +1243,11 @@
           '<td class="date">' + (r.name ? esc(r.name) : '<span class="anon">anonymous</span>') +
           (r.you ? ' <span class="pb">you</span>' : '') + '</td>' +
           '<td class="moves">' + r.moves + '</td>' +
-          '<td class="tries">' + formatMs(r.ms) + '</td></tr>';
+          // Runs solved before the clock existed carry no time. Say so on
+          // hover, so a dash does not read as "took no time at all".
+          '<td class="tries"' + (r.ms === null || r.ms === undefined
+            ? ' title="Solved before timing was added"' : '') + '>' +
+          formatMs(r.ms) + '</td></tr>';
       }
       html += '</tbody></table>';
       if (all.length > BOARD_LIMIT) {
