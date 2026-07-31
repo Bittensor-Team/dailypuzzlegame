@@ -277,28 +277,50 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     broadcastLobby();   // a started room is no longer joinable
   }
 
-  /* First to group every colour takes it. Everyone else is placed by how far
-     they got — finished tubes first, then fewest moves. */
-  function endBattle(room, winner) {
+  /* Everyone still in it: not finished, not walked away. The battle runs until
+     at most one of these is left. */
+  function contenders(room) {
+    return [...room.seats.values()].filter((s) => !s.done && !s.left);
+  }
+
+  /* A finish is recorded the moment it happens — place, moves and time — and
+     the battle carries on. Only the last player standing is denied a finish,
+     because there is nobody left to race. */
+  function recordFinish(room, seat, at) {
+    seat.done = true;
+    seat.ms = at - room.startAt;
+    seat.place = [...room.seats.values()].filter((s) => s.done).length;   // finish order
+    if (!room.winner) room.winner = seat.player;
+    q.scorePlayer.run(seat.moves, seat.ms, seat.place, room.id, seat.player);
+  }
+
+  /* Placings: everyone who finished, in the order they finished, then everyone
+     who did not — the ones still playing ahead of the ones who left. */
+  function endBattle(room, fallbackWinner) {
     if (room.status === 'done') return;
     room.status = 'done';
     room.ended = Date.now();
-    room.winner = winner;
 
-    const rest = [...room.seats.values()].filter((s) => s.player !== winner);
-    rest.sort((a, b) => {
+    const seats = [...room.seats.values()];
+    const finished = seats.filter((s) => s.done).sort((a, b) => a.place - b.place);
+    const rest = seats.filter((s) => !s.done).sort((a, b) => {
+      if (a.left !== b.left) return a.left ? 1 : -1;
       const da = a.tubes ? tubesDone(a.tubes) : 0;
       const dbb = b.tubes ? tubesDone(b.tubes) : 0;
       if (da !== dbb) return dbb - da;
       return a.moves - b.moves;
     });
-    const order = winner ? [room.seats.get(winner), ...rest] : rest;
-    order.forEach((seat, i) => {
-      if (!seat) return;
+
+    if (!room.winner) {
+      // Nobody finished: a walkover, so whoever was left standing takes it.
+      room.winner = fallbackWinner || (rest[0] ? rest[0].player : null);
+    }
+
+    [...finished, ...rest].forEach((seat, i) => {
       seat.place = i + 1;
       q.scorePlayer.run(seat.moves, seat.ms, seat.place, room.id, seat.player);
     });
-    q.finish.run(room.ended, winner, room.id);
+    q.finish.run(room.ended, room.winner, room.id);
     broadcast(room);
     broadcastLobby();
     // Leave the room up briefly so late frames and the result screen land.
@@ -427,8 +449,8 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
         }
       }
       const present = [...room.seats.values()].filter((s) => !s.left);
-      if (room.status === 'live' && present.length === 1 && room.seats.size > 1) {
-        endBattle(room, present[0].player);
+      if (room.status === 'live' && room.seats.size > 1 && contenders(room).length <= 1) {
+        endBattle(room, present[0] ? present[0].player : null);
         continue;
       }
       if (present.length === 0 && now - room.created > GONE_MS) {
@@ -609,10 +631,11 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
       q.addMove.run(room.id, player, seat.moves, undo ? -1 : from, undo ? -1 : to, at);
 
       if (!undo && game.isSolved(seat.tubes)) {
-        seat.done = true;
-        seat.ms = at - room.startAt;
-        q.scorePlayer.run(seat.moves, seat.ms, 1, room.id, player);
-        endBattle(room, player);
+        recordFinish(room, seat, at);
+        // The race is over only when a single player is left with nobody to
+        // race against; until then the others keep playing for their place.
+        if (contenders(room).length <= 1) endBattle(room);
+        else { broadcast(room); broadcastLobby(); }
       } else {
         broadcast(room);
       }
@@ -641,7 +664,14 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
           broadcastLobby();
         } else if (seat) {
           seat.left = true;
-          broadcast(room);
+          // Walking out of a live battle can leave a lone contender, and there
+          // is no race with one runner.
+          if (room.status === 'live' && room.seats.size > 1 && contenders(room).length <= 1) {
+            const present = [...room.seats.values()].filter((p2) => !p2.left);
+            endBattle(room, present[0] ? present[0].player : null);
+          } else {
+            broadcast(room);
+          }
         }
       }
       send(res, 200, { ok: true });

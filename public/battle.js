@@ -114,6 +114,15 @@
     return true;
   }
 
+  function pourLocal(tubes, from, to) {
+    if (!canPour(tubes, from, to)) return 0;
+    var run = topRun(tubes[from]);
+    var room = CAPACITY - tubes[to].length;
+    var n = Math.min(run.count, room);
+    for (var i = 0; i < n; i++) tubes[to].push(tubes[from].pop());
+    return n;
+  }
+
   function isTubeDone(tube) {
     if (tube.length === 0) return true;
     if (tube.length !== CAPACITY) return false;
@@ -125,6 +134,8 @@
   /* Elements                                                            */
   /* ------------------------------------------------------------------ */
 
+  var fx = window.DCPFx || { solve: function () {}, champion: function () {} };
+
   var el = {};
   ['themeBtn', 'whoamiChip', 'lobby', 'lobbyNote', 'quickBtn', 'createBtn', 'sizeSel',
    'joinForm', 'joinCode', 'room', 'roomCode', 'roomTag', 'roster', 'roomNote', 'startBtn',
@@ -134,7 +145,8 @@
    'authForm', 'authName', 'authPass', 'authNote', 'authSubmit', 'authTitle', 'authBlurb',
    'authSwap', 'authSwapText', 'battleHistory', 'parStat', 'parVal',
    'openList', 'openLive', 'openTabBtn', 'mineTabBtn', 'openPane', 'minePane',
-   'arenaLive', 'modeLabel', 'footYear'].forEach(function (id) {
+   'arenaLive', 'modeLabel', 'footYear', 'champ', 'eyeBtn', 'resultEmblem',
+   'emblemPlace'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
 
@@ -150,6 +162,14 @@
   var skew = 0;           // server clock minus this browser's, in ms
   var boardBuilt = false;
   var tubeEls = [];
+
+  /* A move used to wait for the server before it painted, so every block slid
+     one round trip late — fine on localhost, awful on a real connection. The
+     move is now applied locally the instant it is tapped and the server's copy
+     reconciles behind it. The server is still the authority: it can reject a
+     move, and then its board replaces ours. */
+  var localMoves = 0;       // our count, including moves not yet acknowledged
+  var localHistory = [];    // {from, to, count} per optimistic pour, for undo
 
   function serverNow() { return Date.now() + skew; }
 
@@ -214,6 +234,20 @@
     boardBuilt = true;
   }
 
+  // The palette is resolved from the stylesheet: color-mix() needs a real
+  // colour, not a var pointing at another var.
+  var COLOR_HEX = (function () {
+    var root = getComputedStyle(document.documentElement);
+    var out = [];
+    for (var c = 0; c < COLOR_COUNT; c++) {
+      out.push((root.getPropertyValue('--c' + c) || '').trim() || '#22e0ff');
+    }
+    return out;
+  })();
+
+  var wasDone = [];
+  var primedDone = false;   // the first paint records state without flashing
+
   function renderMyBoard() {
     if (!myTubes) return;
     buildMyBoard();
@@ -224,10 +258,28 @@
       var lift = selected === i && run ? run.count : 0;
       node.innerHTML = tubeHTML(tube, lift);
       node.classList.toggle('selected', selected === i);
-      node.classList.toggle('done', tube.length === CAPACITY && isTubeDone(tube));
+
+      // Completing a tube glows in that colour and flashes a ring outward,
+      // exactly as the daily board does.
+      var doneNow = tube.length === CAPACITY && isTubeDone(tube);
+      node.classList.toggle('done', doneNow);
+      if (doneNow) {
+        node.style.setProperty('--done-c', COLOR_HEX[tube[0]]);
+        if (!wasDone[i] && primedDone) {
+          node.classList.remove('just-done');
+          void node.offsetWidth;          // restart the animation
+          node.classList.add('just-done');
+        }
+      } else {
+        node.classList.remove('just-done');
+        node.style.removeProperty('--done-c');
+      }
+      wasDone[i] = doneNow;
+
       node.setAttribute('aria-label', describeTube(myTubes, i));
       node.setAttribute('aria-pressed', selected === i ? 'true' : 'false');
     }
+    primedDone = true;
     el.mySelected.textContent = selected === null ? 'None' : 'Tube ' + (selected + 1);
   }
 
@@ -244,7 +296,7 @@
       cells += '<div class="tube tube-mini' + (shape[i].done ? ' tube-sealed' : '') + '">' +
         blocks + '</div>';
     }
-    var status = p.solved ? '<span class="pill pill-win">solved</span>'
+    var status = p.solved ? '<span class="pill pill-win">' + ordinal(p.place) + '</span>'
       : p.left ? '<span class="pill pill-gone">left</span>'
       : p.here ? '<span class="pill pill-live">playing</span>'
       : '<span class="pill pill-gone">away</span>';
@@ -265,13 +317,31 @@
     });
   }
 
+  function ordinal(n) {
+    if (n === 1) return '1st';
+    if (n === 2) return '2nd';
+    if (n === 3) return '3rd';
+    return n + 'th';
+  }
+
   function renderArena() {
     var mine = me();
     if (!mine) return;
-    el.myMoves.textContent = String(mine.moves);
+    el.myMoves.textContent = String(Math.max(mine.moves, localMoves));
     el.arenaCode.textContent = view.code;
     el.solvedChip.hidden = !mine.solved;
-    el.myProgress.innerHTML = '<b>' + mine.done + '</b>/10 tubes done';
+
+    // Finishing does not end the battle any more, so the footer says where you
+    // came and who is still out there.
+    if (mine.solved && view.status === 'live') {
+      var racing = view.players.filter(function (p) { return !p.solved && !p.left; }).length;
+      el.myProgress.innerHTML = 'Finished <b>' + ordinal(mine.place) + '</b> in <b>' +
+        mine.moves + '</b> moves &middot; ' +
+        (racing === 1 ? 'one player still going' : racing + ' players still going');
+    } else {
+      el.myProgress.innerHTML = '<b>' + mine.done + '</b>/10 tubes done';
+    }
+    el.arena.classList.toggle('is-waiting', !!mine.solved && view.status === 'live');
     if (view.par) { el.parStat.hidden = false; el.parVal.textContent = String(view.par); }
 
     var rivals = view.players.filter(function (p) { return !p.you; });
@@ -310,8 +380,23 @@
   /* Applying server state                                               */
   /* ------------------------------------------------------------------ */
 
+  var celebrated = false;   // one solve, one show
+  var champTimer = null;
+
+  function championCelebration() {
+    fx.champion();
+    if (champTimer) clearTimeout(champTimer);
+    el.champ.classList.remove('out');
+    el.champ.hidden = false;
+    champTimer = setTimeout(function () {
+      el.champ.classList.add('out');
+      champTimer = setTimeout(function () { el.champ.hidden = true; }, 700);
+    }, 2600);
+  }
+
   function apply(next) {
     var wasStatus = view ? view.status : null;
+    var wasSolved = me() ? me().solved : false;
     view = next;
     // A browser clock can sit minutes away from the server's. The offset is
     // measured once per frame, at the instant it lands, and every later
@@ -319,13 +404,28 @@
     // fold the elapsed time back in and the countdown would never expire.
     skew = view.now - Date.now();
     var mine = me();
-    if (mine && mine.tubes) myTubes = mine.tubes;
+    if (mine && mine.tubes && mine.moves >= localMoves) {
+      // The server has caught up with (or passed) us, so its board wins.
+      myTubes = mine.tubes;
+      if (mine.moves > localMoves) localHistory = [];   // we lost the thread
+      localMoves = mine.moves;
+    }
+
+    // Fireworks the moment you finish; the full-screen treatment if you took it.
+    if (mine && mine.solved && !wasSolved && !celebrated) {
+      celebrated = true;
+      if (mine.place === 1) championCelebration();
+      else fx.solve();
+    }
 
     if (view.status === 'open') {
       show('room');
       renderRoom();
     } else if (view.status === 'live') {
-      if (wasStatus !== 'live') { boardBuilt = false; selected = null; }
+      if (wasStatus !== 'live') {
+        boardBuilt = false; selected = null; wasDone = []; primedDone = false;
+        celebrated = false; localMoves = 0; localHistory = [];
+      }
       show('arena');
       renderArena();
       if (view.startAt > serverNow()) runCountdown();
@@ -366,12 +466,12 @@
       if (view.players[i].player === view.winner) winner = view.players[i];
     }
     var iWon = mine && view.winner === mine.player;
-    el.resultTitle.textContent = iWon ? 'You win' : 'Battle over';
+    el.resultTitle.textContent = iWon ? 'You win'
+      : mine && mine.solved ? 'Finished ' + ordinal(mine.place) : 'Battle over';
     // textContent escapes on its own; running esc() here would show &amp;.
-    el.resultLine.textContent = winner
-      ? (iWon ? 'Solved in ' + mine.moves + ' moves, ' + formatMs(mine.ms) + '.'
-              : winner.name + ' solved it first in ' + winner.moves + ' moves, ' + formatMs(winner.ms) + '.')
-      : 'Nobody finished.';
+    el.resultLine.textContent = !winner ? 'Nobody finished.'
+      : iWon ? 'First to finish — ' + mine.moves + ' moves, ' + formatMs(mine.ms) + '.'
+      : winner.name + ' finished first in ' + winner.moves + ' moves, ' + formatMs(winner.ms) + '.';
 
     var rows = view.players.slice().sort(function (a, b) {
       return (a.place || 99) - (b.place || 99);
@@ -383,8 +483,13 @@
           '<td class="rank">' + (p.place || '—') + '</td>' +
           '<td class="date">' + esc(p.name) + (p.you ? ' <span class="pb">you</span>' : '') + '</td>' +
           '<td class="moves">' + p.moves + '</td>' +
-          '<td class="tries">' + (p.solved ? formatMs(p.ms) : 'did not finish') + '</td></tr>';
+          '<td class="tries">' + (p.solved ? formatMs(p.ms)
+            : p.left ? 'left' : 'ran out of rivals') + '</td></tr>';
       }).join('') + '</tbody></table>';
+    var place = mine && mine.place ? mine.place : 0;
+    var tone = place === 1 ? 'gold' : place === 2 ? 'silver' : place === 3 ? 'bronze' : 'steel';
+    el.resultEmblem.setAttribute('class', 'emblem emblem-' + tone);
+    el.emblemPlace.textContent = place ? String(place) : '\u2014';
     el.resultOverlay.hidden = false;
   }
 
@@ -495,9 +600,13 @@
     payload.battle = view.battle;
     return post('/api/battle/move', payload).then(function (r) {
       if (r.ok) { apply(r.data); return; }
-      // A rejected move means this client's picture drifted; the reply carries
-      // the authoritative one when it can.
-      if (r.data && r.data.state) apply(r.data.state);
+      // A rejected move means our optimistic board drifted from the server's.
+      // Drop the prediction and take theirs, whatever it says.
+      if (r.data && r.data.state) {
+        localMoves = -1;
+        localHistory = [];
+        apply(r.data.state);
+      }
       if (r.status === 400) nudge();
     });
   }
@@ -524,7 +633,29 @@
 
     var from = selected;
     selected = null;
+    // Paint immediately; the request goes out behind it.
+    var moved = pourLocal(myTubes, from, index);
+    if (!moved) { nudge(); return; }
+    localHistory.push({ from: from, to: index, count: moved });
+    localMoves += 1;
+    renderMyBoard();
+    paintMyStats();
     sendMove({ from: from, to: index });
+  }
+
+  /* Counters read from the optimistic board, so they move with the blocks
+     rather than a round trip later. */
+  function paintMyStats() {
+    var mine = me();
+    el.myMoves.textContent = String(localMoves);
+    if (!myTubes) return;
+    var done = 0;
+    for (var i = 0; i < myTubes.length; i++) {
+      if (myTubes[i].length === CAPACITY && isTubeDone(myTubes[i])) done++;
+    }
+    if (!(mine && mine.solved && view && view.status === 'live')) {
+      el.myProgress.innerHTML = '<b>' + done + '</b>/10 tubes done';
+    }
   }
 
   el.myBoard.addEventListener('click', function (e) {
@@ -533,7 +664,19 @@
   });
 
   el.undoBtn2.addEventListener('click', function () {
-    if (started()) sendMove({ undo: true });
+    if (!started()) return;
+    var mine = me();
+    if (mine && mine.solved) return;
+    var last = localHistory.pop();
+    if (last && myTubes) {
+      for (var i = 0; i < last.count; i++) myTubes[last.from].push(myTubes[last.to].pop());
+      // Undo buys back the position, never the move — same as the daily puzzle.
+      localMoves += 1;
+      selected = null;
+      renderMyBoard();
+      paintMyStats();
+    }
+    sendMove({ undo: true });
   });
 
   document.addEventListener('keydown', function (e) {
@@ -721,6 +864,18 @@
   });
 
   el.themeBtn.addEventListener('click', function () { theme.toggle(); });
+
+  // Colour labels, sharing the daily puzzle's setting so the choice carries
+  // across both pages.
+  if (store.get('dcp:labels', false)) {
+    document.body.classList.add('labels');
+    el.eyeBtn.setAttribute('aria-pressed', 'true');
+  }
+  el.eyeBtn.addEventListener('click', function () {
+    var on = document.body.classList.toggle('labels');
+    el.eyeBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    store.set('dcp:labels', on);
+  });
 
   /* Leaving the tab open in a dead battle helps nobody; tell the server so the
      opponent is not left staring at a frozen board. */

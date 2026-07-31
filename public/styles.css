@@ -2392,6 +2392,56 @@ a { cursor: var(--cur-target), pointer; }
 
 .board.shake { animation: nudge 0.26s ease; }
 
+/* Once you have finished, your board is done with you — the others are still
+   racing for their place, so it stays on screen, just visibly inert. */
+.is-waiting #myBoard { opacity: 0.6; pointer-events: none; }
+.is-waiting #myBoard .tube { cursor: default; }
+
+/* ---------- result emblem ---------- */
+
+.emblem {
+  display: block;
+  width: 108px;
+  height: 108px;
+  margin: 0 auto 10px;
+  --em: var(--accent);
+}
+.emblem-gold   { --em: #ffd24d; }
+.emblem-silver { --em: #cfe0ee; }
+.emblem-bronze { --em: #e08c4a; }
+.emblem-steel  { --em: var(--ink-dim); }
+
+.emblem-swords path {
+  fill: color-mix(in srgb, var(--em) 55%, transparent);
+  stroke: color-mix(in srgb, var(--em) 75%, transparent);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+.emblem-shield {
+  fill: color-mix(in srgb, var(--em) 14%, transparent);
+  stroke: var(--em);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--em) 45%, transparent));
+}
+.emblem-disc {
+  fill: var(--panel-bg);
+  stroke: color-mix(in srgb, var(--em) 70%, transparent);
+  stroke-width: 1.8;
+}
+.emblem-place {
+  fill: var(--em);
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 700;
+}
+/* The medal tones are tuned for a dark ground; on the light theme's white disc
+   gold and silver all but vanish, so they darken to keep the number readable. */
+:root[data-theme="light"] .emblem-gold   { --em: #8a6300; }
+:root[data-theme="light"] .emblem-silver { --em: #4d5f6c; }
+:root[data-theme="light"] .emblem-bronze { --em: #8a4413; }
+:root[data-theme="light"] .emblem-shield { filter: none; }
+
 /* ---------- countdown ---------- */
 
 /* [hidden] is the weakest rule in the cascade, so any class that sets

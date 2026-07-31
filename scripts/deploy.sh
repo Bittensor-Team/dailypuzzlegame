@@ -14,9 +14,10 @@ css_hash="$(md5sum "$SRC/styles.css" | cut -c1-10)"
 js_hash="$(md5sum "$SRC/game.js" | cut -c1-10)"
 earth_hash="$(md5sum "$SRC/earth.js" | cut -c1-10)"
 battle_hash="$(md5sum "$SRC/battle.js" | cut -c1-10)"
+fx_hash="$(md5sum "$SRC/fx.js" | cut -c1-10)"
 
 mkdir -p "$DEST"
-cp "$SRC/styles.css" "$SRC/game.js" "$SRC/earth.js" "$SRC/battle.js" \
+cp "$SRC/styles.css" "$SRC/game.js" "$SRC/earth.js" "$SRC/battle.js" "$SRC/fx.js" \
    "$SRC/privacy.html" "$DEST/"
 
 # Rewrite the asset references with the current fingerprints. Every page that
@@ -27,12 +28,13 @@ stamp() {
       -e "s|src=\"game\.js[^\"]*\"|src=\"game.js?v=$js_hash\"|g" \
       -e "s|src=\"earth\.js[^\"]*\"|src=\"earth.js?v=$earth_hash\"|g" \
       -e "s|src=\"battle\.js[^\"]*\"|src=\"battle.js?v=$battle_hash\"|g" \
+      -e "s|src=\"fx\.js[^\"]*\"|src=\"fx.js?v=$fx_hash\"|g" \
       "$SRC/$1" > "$DEST/$1"
 }
 stamp index.html
 stamp battle.html
 
 chmod 644 "$DEST"/*
-echo "deployed  css=$css_hash  js=$js_hash  earth=$earth_hash  battle=$battle_hash"
-grep -ho 'styles\.css?v=[a-f0-9]*\|game\.js?v=[a-f0-9]*\|earth\.js?v=[a-f0-9]*\|battle\.js?v=[a-f0-9]*' \
+echo "deployed  css=$css_hash  js=$js_hash  earth=$earth_hash  battle=$battle_hash  fx=$fx_hash"
+grep -ho 'styles\.css?v=[a-f0-9]*\|game\.js?v=[a-f0-9]*\|earth\.js?v=[a-f0-9]*\|battle\.js?v=[a-f0-9]*\|fx\.js?v=[a-f0-9]*' \
   "$DEST/index.html" "$DEST/battle.html"
