@@ -114,7 +114,7 @@ const recordIssued = db.prepare(
   'INSERT INTO issued (player, day, at) VALUES (?, ?, ?) ON CONFLICT (player, day) DO NOTHING'
 );
 const selectIssued = db.prepare('SELECT at FROM issued WHERE player = ? AND day = ?');
-const selectBest = db.prepare('SELECT moves, ms FROM scores WHERE player = ? AND day = ?');
+const selectBest = db.prepare('SELECT moves, ms, updated FROM scores WHERE player = ? AND day = ?');
 const insertAttempt = db.prepare(
   'INSERT INTO attempts (player, day, moves, ms, created) VALUES (?, ?, ?, ?, ?)'
 );
@@ -137,16 +137,22 @@ const selectBoard = db.prepare(
     ORDER BY s.moves ASC, COALESCE(s.ms, ${NO_TIME}) ASC, s.updated ASC
     LIMIT 100`
 );
-// Rank counts everyone strictly ahead on (moves, then time).
+/* Ranking keys on (moves, time, submitted-at). The third key makes the order
+   total: without it, scores recorded before timing existed all tie, and three
+   people would each be shown as first. */
 const selectAhead = db.prepare(
   `SELECT COUNT(*) AS n FROM scores
     WHERE day = ?1
-      AND (moves < ?2 OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) < ?3))`
+      AND (moves < ?2
+        OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) < ?3)
+        OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) = ?3 AND updated < ?4))`
 );
 const selectBehind = db.prepare(
   `SELECT COUNT(*) AS n FROM scores
     WHERE day = ?1
-      AND (moves > ?2 OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) > ?3))`
+      AND (moves > ?2
+        OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) > ?3)
+        OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) = ?3 AND updated > ?4))`
 );
 const selectByName = db.prepare('SELECT * FROM players WHERE name_lower = ?');
 const selectPlayer = db.prepare('SELECT player, name FROM players WHERE player = ?');
@@ -309,39 +315,37 @@ function distribution(day, player) {
 
   let best = null;
   let bestMs = null;
+  let bestAt = 0;
   if (player) {
     const row = selectBest.get(player, day);
-    if (row) { best = Number(row.moves); bestMs = row.ms === null ? null : Number(row.ms); }
+    if (row) {
+      best = Number(row.moves);
+      bestMs = row.ms === null ? null : Number(row.ms);
+      bestAt = Number(row.updated);
+    }
   }
 
   let rank = null;
   let betterThan = null;
   if (best !== null && total > 0) {
     const key = bestMs === null ? NO_TIME : bestMs;
-    rank = Number(selectAhead.get(day, best, key).n) + 1;
-    betterThan = Math.round((100 * Number(selectBehind.get(day, best, key).n)) / total);
+    rank = Number(selectAhead.get(day, best, key, bestAt).n) + 1;
+    betterThan = Math.round((100 * Number(selectBehind.get(day, best, key, bestAt).n)) / total);
   }
 
   // Competition ranking: equal scores share the better rank, and the next
   // distinct score skips ahead (1, 1, 3). This has to match the rank shown on
   // the dial, which is computed the same way — otherwise a tied leader sees
   // "#1" beside a silver badge.
-  // Two players share a rank only when both moves and time match.
-  let lastKey = null;
-  let lastRank = 0;
-  const board = selectBoard.all(day).map((r, i) => {
-    const moves = Number(r.moves);
-    const ms = r.ms === null ? null : Number(r.ms);
-    const key = moves + ':' + (ms === null ? 'x' : ms);
-    if (key !== lastKey) { lastRank = i + 1; lastKey = key; }
-    return {
-      rank: lastRank,
-      name: r.name,
-      moves,
-      ms,
-      you: player ? r.player === player : false,
-    };
-  });
+  // The order is total, so every row has its own place — exactly one first,
+  // one second, one third.
+  const board = selectBoard.all(day).map((r, i) => ({
+    rank: i + 1,
+    name: r.name,
+    moves: Number(r.moves),
+    ms: r.ms === null ? null : Number(r.ms),
+    you: player ? r.player === player : false,
+  }));
 
   const me = player ? selectPlayer.get(player) : null;
 
