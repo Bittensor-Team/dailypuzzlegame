@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battle &middot; Daily Color Puzzle</title>
+<meta name="description" content="Race another player on a freshly dealt color puzzle. First to group every color wins.">
+<meta name="theme-color" content="#030711">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23030711'/><circle cx='16' cy='16' r='14' fill='none' stroke='%23ff2be0' stroke-width='1.1' stroke-dasharray='1 3' opacity='.8'/><path d='M16 4.5 26.1 10.25 26.1 21.75 16 27.5 5.9 21.75 5.9 10.25Z' fill='none' stroke='%23ff2be0' stroke-width='1.6'/><rect x='10.5' y='11.4' width='11' height='2.5' rx='1.25' fill='%2331ff5a'/><rect x='10.5' y='14.9' width='11' height='2.5' rx='1.25' fill='%23f2ee4a'/><rect x='10.5' y='18.4' width='11' height='2.5' rx='1.25' fill='%23ff2be0'/></svg>">
+</head>
+<body class="battlepage">
+
+<button type="button" id="themeBtn" class="themetoggle" title="Switch theme"
+        aria-label="Switch between dark and light theme">&#9789;</button>
+
+<h1 id="pageTitle">
+  <svg class="logo" viewBox="0 0 48 48" aria-hidden="true">
+    <circle class="logo-ticks" cx="24" cy="24" r="22"></circle>
+    <circle class="logo-sweep" cx="24" cy="24" r="18.5"></circle>
+    <path class="logo-hex" d="M24 6.5 39.2 15.25 39.2 32.75 24 41.5 8.8 32.75 8.8 15.25Z"></path>
+    <rect class="logo-bar b1" x="16" y="17" width="16" height="3.6" rx="1.8"></rect>
+    <rect class="logo-bar b2" x="16" y="22.2" width="16" height="3.6" rx="1.8"></rect>
+    <rect class="logo-bar b3" x="16" y="27.4" width="16" height="3.6" rx="1.8"></rect>
+  </svg>
+  <span class="title-text">Battle</span>
+  <span class="date" id="modeLabel">live race</span>
+</h1>
+
+<p class="battle-nav">
+  <a href="index.html" class="btn btn-ghost btn-sm">&lsaquo; Daily puzzle</a>
+  <span class="whoami-chip" id="whoamiChip" hidden></span>
+</p>
+
+<!-- Lobby ------------------------------------------------------------- -->
+<section class="hud lobby" id="lobby" aria-labelledby="lobbyTitle">
+  <span class="hud-hatch" aria-hidden="true"></span>
+  <header class="hud-head">
+    <h2 id="lobbyTitle">Start a battle</h2>
+    <span class="hud-tag" id="lobbyTag">fresh board, first to solve wins</span>
+  </header>
+
+  <div class="lobby-grid">
+    <div class="lobby-card">
+      <h3 class="lb-h3">Quick match</h3>
+      <p class="lobby-note">Paired with whoever is waiting. A brand new board is dealt for every battle.</p>
+      <button type="button" id="quickBtn" class="btn btn-primary">Find opponent</button>
+    </div>
+
+    <div class="lobby-card">
+      <h3 class="lb-h3">Private room</h3>
+      <p class="lobby-note">Get a code to share. Starts by itself once the room is full.</p>
+      <label class="fld fld-inline">
+        <span>Players</span>
+        <select id="sizeSel" class="txt txt-sm">
+          <option value="2" selected>2 &mdash; duel</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="8">8</option>
+        </select>
+      </label>
+      <button type="button" id="createBtn" class="btn btn-primary">Create room</button>
+    </div>
+
+    <div class="lobby-card">
+      <h3 class="lb-h3">Join a room</h3>
+      <p class="lobby-note">Enter the five-character code a friend sent you.</p>
+      <form id="joinForm">
+        <label class="fld fld-inline">
+          <span>Code</span>
+          <input type="text" id="joinCode" class="txt txt-code" maxlength="5" placeholder="K7F2Q"
+                 autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Battle code">
+        </label>
+        <button type="submit" id="joinBtn" class="btn btn-primary">Join</button>
+      </form>
+    </div>
+  </div>
+
+  <p class="formnote" id="lobbyNote" role="status"></p>
+
+  <div class="lb-block" id="histBlock" hidden>
+    <h3 class="lb-h3">Your recent battles</h3>
+    <div class="lb-wrap" id="battleHistory"></div>
+  </div>
+</section>
+
+<!-- Waiting room ------------------------------------------------------ -->
+<section class="hud room" id="room" hidden aria-labelledby="roomTitle">
+  <span class="hud-hatch" aria-hidden="true"></span>
+  <header class="hud-head">
+    <h2 id="roomTitle">Waiting room</h2>
+    <span class="hud-tag" id="roomTag">open</span>
+  </header>
+
+  <div class="room-code">
+    <span class="room-code-label">Battle code</span>
+    <b id="roomCode">&mdash;</b>
+    <button type="button" id="copyLinkBtn" class="btn btn-ghost btn-sm">Copy invite link</button>
+  </div>
+
+  <ol class="roster" id="roster"></ol>
+  <p class="formnote" id="roomNote" role="status">Waiting for players&hellip;</p>
+
+  <div class="panel-actions">
+    <button type="button" id="startBtn" class="btn btn-primary" hidden>Start now</button>
+    <button type="button" id="leaveBtn" class="btn btn-ghost">Leave</button>
+  </div>
+</section>
+
+<!-- Arena ------------------------------------------------------------- -->
+<section class="arena" id="arena" hidden aria-label="Battle arena">
+  <div class="arena-bar">
+    <span class="stat">Moves: <b id="myMoves">0</b></span>
+    <span class="stat">Selected: <b id="mySelected">None</b></span>
+    <span class="arena-code">Battle <b id="arenaCode">&mdash;</b></span>
+    <span class="stat" id="parStat" hidden>Par: <b id="parVal">&mdash;</b></span>
+    <span class="live" id="arenaLive"><i></i>live</span>
+    <button type="button" id="undoBtn2" class="btn btn-primary btn-sm">Undo</button>
+    <button type="button" id="quitBtn" class="btn btn-ghost btn-sm">Forfeit</button>
+  </div>
+
+  <div class="arena-grid" id="arenaGrid">
+    <div class="side side-me">
+      <header class="side-head">
+        <span class="side-name" id="myName">You</span>
+        <span class="side-meta"><b id="myDone">0</b>/10 done</span>
+      </header>
+      <div class="board board-live" id="myBoard" aria-label="Your board"></div>
+      <div class="side-bar"><span class="side-fill" id="myFill"></span></div>
+    </div>
+    <div class="rivals" id="rivals"></div>
+  </div>
+
+  <div class="countdown-veil" id="veil" hidden>
+    <p class="veil-num" id="veilNum">3</p>
+    <p class="veil-cap">Get ready</p>
+  </div>
+</section>
+
+<div class="overlay overlay-fixed" id="resultOverlay" hidden>
+  <div class="panel">
+    <h2 id="resultTitle">Battle over</h2>
+    <p class="win-line" id="resultLine"></p>
+    <div class="lb-wrap" id="resultTable"></div>
+    <div class="panel-actions">
+      <button type="button" id="againBtn" class="btn btn-primary">New battle</button>
+      <a class="btn btn-ghost" href="index.html">Daily puzzle</a>
+    </div>
+  </div>
+</div>
+
+<div class="overlay overlay-fixed" id="authOverlay" hidden>
+  <div class="panel">
+    <h2 id="authTitle">Sign in to battle</h2>
+    <p id="authBlurb">Battles are tied to your account, the same one the daily leaderboard uses.</p>
+    <form id="authForm">
+      <label class="fld">
+        <span>Nickname</span>
+        <input type="text" id="authName" class="txt" maxlength="24" placeholder="@LegenD@"
+               autocomplete="username" aria-label="Nickname" required>
+      </label>
+      <label class="fld">
+        <span>Password</span>
+        <input type="password" id="authPass" class="txt" maxlength="200" minlength="8"
+               placeholder="at least 8 characters" autocomplete="current-password"
+               aria-label="Password" required>
+      </label>
+      <p class="formnote" id="authNote" role="status"></p>
+      <div class="panel-actions">
+        <button type="submit" id="authSubmit" class="btn btn-primary">Sign in</button>
+      </div>
+    </form>
+    <p class="authswap">
+      <span id="authSwapText">No account yet?</span>
+      <button type="button" id="authSwap" class="linkbtn">Create one</button>
+    </p>
+  </div>
+</div>
+
+<footer class="footnote">
+  <span>&copy; <span id="footYear">2026</span> Daily Color Puzzle</span>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <a href="index.html">Daily puzzle</a>
+  <span class="foot-sep" aria-hidden="true">//</span>
+  <a href="privacy.html">&#9432; Privacy</a>
+</footer>
+
+<script src="battle.js"></script>
+</body>
+</html>

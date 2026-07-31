@@ -352,6 +352,16 @@ function distribution(day, player) {
   return { day, total, attempts, dayBest, counts, best, bestMs, rank, betterThan, board, name: me ? me.name : null };
 }
 
+const battles = require('./battle.js')({
+  db,
+  game,
+  playerForToken,
+  nameOf: (player) => {
+    const row = selectPlayer.get(player);
+    return row ? row.name : null;
+  },
+});
+
 function send(res, code, body) {
   const payload = JSON.stringify(body);
   res.writeHead(code, {
@@ -379,11 +389,18 @@ function readBody(req) {
 const server = http.createServer(async (req, res) => {
   const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
     req.socket.remoteAddress || 'unknown';
-  if (rateLimited('req:' + ip, 120)) return send(res, 429, { error: 'slow down' });
 
   let url;
   try { url = new URL(req.url, 'http://localhost'); }
   catch { return send(res, 400, { error: 'bad request' }); }
+
+  /* A battle is one request per pour, and two players on the same home
+     connection share an address. The daily-puzzle ceiling would throttle a
+     close race, so battles get their own, higher one. */
+  const battling = url.pathname.indexOf('/api/battle') === 0;
+  if (rateLimited((battling ? 'battle:' : 'req:') + ip, battling ? 600 : 120)) {
+    return send(res, 429, { error: 'slow down' });
+  }
 
   const post = req.method === 'POST';
   let body = {};
@@ -395,6 +412,9 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return send(res, 200, { ok: true });
   }
+
+  // Live duels and multiplayer races, on their own freshly dealt boards.
+  if (battles.handle(req, res, url, body, send)) return;
 
   /* -- accounts -- */
 

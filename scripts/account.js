@@ -96,9 +96,25 @@ if (cmd === 'delete') {
   // charting runs by a player who no longer exists.
   let attempts = { changes: 0 };
   try { attempts = db.prepare('DELETE FROM attempts WHERE player = ?').run(row.player); } catch { /* older db */ }
+
+  /* Battles too, or a deleted player keeps appearing in old rosters and the
+     move log points at an account that no longer exists. A battle nobody is
+     left in goes with them. */
+  let seats = { changes: 0 };
+  let moves = { changes: 0 };
+  let battles = { changes: 0 };
+  try {
+    moves = db.prepare('DELETE FROM battle_moves WHERE player = ?').run(row.player);
+    seats = db.prepare('DELETE FROM battle_players WHERE player = ?').run(row.player);
+    battles = db.prepare(
+      `DELETE FROM battles
+        WHERE battle NOT IN (SELECT battle FROM battle_players)`).run();
+  } catch { /* db predates battles */ }
+
   db.prepare('DELETE FROM players WHERE player = ?').run(row.player);
   console.log('Deleted ' + row.name + ' — ' + scores.changes + ' score(s), ' +
-    attempts.changes + ' attempt(s).');
+    attempts.changes + ' attempt(s), ' + seats.changes + ' battle seat(s), ' +
+    moves.changes + ' battle move(s), ' + battles.changes + ' empty battle(s).');
   process.exit(0);
 }
 

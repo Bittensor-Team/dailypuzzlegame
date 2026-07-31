@@ -13,16 +13,26 @@ DEST="${DCP_WEBROOT:-/var/www/dailycolorpuzzle}"
 css_hash="$(md5sum "$SRC/styles.css" | cut -c1-10)"
 js_hash="$(md5sum "$SRC/game.js" | cut -c1-10)"
 earth_hash="$(md5sum "$SRC/earth.js" | cut -c1-10)"
+battle_hash="$(md5sum "$SRC/battle.js" | cut -c1-10)"
 
 mkdir -p "$DEST"
-cp "$SRC/styles.css" "$SRC/game.js" "$SRC/earth.js" "$SRC/privacy.html" "$DEST/"
+cp "$SRC/styles.css" "$SRC/game.js" "$SRC/earth.js" "$SRC/battle.js" \
+   "$SRC/privacy.html" "$DEST/"
 
-# Rewrite the asset references with the current fingerprints.
-sed -e "s|href=\"styles\.css[^\"]*\"|href=\"styles.css?v=$css_hash\"|g" \
-    -e "s|src=\"game\.js[^\"]*\"|src=\"game.js?v=$js_hash\"|g" \
-    -e "s|src=\"earth\.js[^\"]*\"|src=\"earth.js?v=$earth_hash\"|g" \
-    "$SRC/index.html" > "$DEST/index.html"
+# Rewrite the asset references with the current fingerprints. Every page that
+# loads an asset needs the same treatment, or the page left out keeps serving
+# whatever the browser cached an hour ago.
+stamp() {
+  sed -e "s|href=\"styles\.css[^\"]*\"|href=\"styles.css?v=$css_hash\"|g" \
+      -e "s|src=\"game\.js[^\"]*\"|src=\"game.js?v=$js_hash\"|g" \
+      -e "s|src=\"earth\.js[^\"]*\"|src=\"earth.js?v=$earth_hash\"|g" \
+      -e "s|src=\"battle\.js[^\"]*\"|src=\"battle.js?v=$battle_hash\"|g" \
+      "$SRC/$1" > "$DEST/$1"
+}
+stamp index.html
+stamp battle.html
 
 chmod 644 "$DEST"/*
-echo "deployed  css=$css_hash  js=$js_hash  earth=$earth_hash"
-grep -o 'styles\.css?v=[a-f0-9]*\|game\.js?v=[a-f0-9]*\|earth\.js?v=[a-f0-9]*' "$DEST/index.html"
+echo "deployed  css=$css_hash  js=$js_hash  earth=$earth_hash  battle=$battle_hash"
+grep -ho 'styles\.css?v=[a-f0-9]*\|game\.js?v=[a-f0-9]*\|earth\.js?v=[a-f0-9]*\|battle\.js?v=[a-f0-9]*' \
+  "$DEST/index.html" "$DEST/battle.html"

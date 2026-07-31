@@ -2010,3 +2010,300 @@ a { cursor: var(--cur-target), pointer; }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ================================================================== */
+/* Battles — lobby, waiting room and the live arena                    */
+/* ================================================================== */
+
+.battlepage .layout { display: block; }
+
+.battle-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  margin: 0 auto 14px;
+  padding: 0 16px;
+}
+
+.whoami-chip {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  padding: 5px 10px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  background: rgb(var(--panel-rgb) / 0.5);
+}
+
+.lobby, .room {
+  max-width: 1000px;
+  margin: 0 auto 22px;
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 4px 2px 10px;
+}
+
+.lobby-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.08));
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.lobby-card .btn { align-self: flex-start; }
+.lobby-card form { display: contents; }
+
+.lobby-note {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+  margin: 0;
+  flex: 1;
+}
+
+.fld-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.fld-inline > span { white-space: nowrap; }
+.txt-sm { padding: 7px 9px; font-size: 13px; }
+.txt-code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  max-width: 140px;
+}
+
+/* ---------- waiting room ---------- */
+
+.room-code {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 14px 2px;
+}
+.room-code-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+#roomCode {
+  font-family: var(--font-mono);
+  font-size: clamp(28px, 6vw, 44px);
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  text-shadow: var(--glow);
+}
+
+.roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  background: rgb(var(--panel-rgb) / 0.35);
+}
+.roster-row.me { border-color: rgb(var(--accent-rgb) / 0.5); }
+.roster-row.empty { opacity: 0.45; font-style: italic; }
+.roster-name { flex: 1; }
+
+.pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+.pill-live { color: var(--good); border-color: rgb(var(--good-rgb) / 0.5); }
+.pill-win  { color: var(--accent); border-color: rgb(var(--accent-rgb) / 0.6); }
+.pill-gone { opacity: 0.6; }
+
+/* ---------- arena ---------- */
+
+.arena {
+  position: relative;
+  max-width: 1400px;
+  margin: 0 auto 24px;
+  padding: 0 12px;
+}
+
+.arena-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.1));
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.arena-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+}
+.arena-code b { color: var(--accent); letter-spacing: 0.2em; }
+.arena-bar .btn { margin-left: auto; }
+.arena-bar .btn + .btn { margin-left: 0; }
+
+.arena-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.arena-duel .arena-grid { max-width: 1180px; margin: 0 auto; }
+/* A duel gets two equal halves; a crowd gets a big board and a wall of
+   thumbnails beside it. */
+.arena-duel .arena-grid { grid-template-columns: 1fr 1fr; }
+
+.side {
+  border: 1px solid var(--line);
+  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.06));
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  padding-bottom: 10px;
+}
+.side-me { border-color: rgb(var(--accent-rgb) / 0.45); }
+.side-rival.is-solved { border-color: rgb(var(--good-rgb) / 0.6); }
+
+.side-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.side-name {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.side-meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.side-meta b { color: var(--ink); }
+
+.side-bar {
+  height: 4px;
+  margin: 0 14px;
+  background: var(--slot-bg);
+  overflow: hidden;
+}
+.side-fill {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--good));
+  transition: width 0.25s ease;
+}
+
+.rivals { display: grid; gap: 14px; }
+.rivals-many { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+/* The opponent's board is a smaller, non-interactive copy of the same grid. */
+.board-mini { gap: 6px; padding: 12px; }
+.board-mini .tube {
+  max-width: 62px;
+  gap: 3px;
+  padding: 4px;
+  cursor: default;
+  animation: none;
+}
+.board-mini .block { height: 14px; }
+.board-mini .slot  { height: 14px; border-radius: 4px; }
+.board-mini .tag   { display: none; }
+.rivals-many .board-mini .tube { max-width: 44px; }
+
+/* In a duel the opponent is not a thumbnail — the two boards face each other
+   as equals, which is the whole point of watching them play. */
+.arena-duel .board-mini { gap: 10px; padding: 16px; }
+.arena-duel .board-mini .tube { max-width: 92px; gap: 5px; padding: 6px; }
+.arena-duel .board-mini .block,
+.arena-duel .board-mini .slot { height: 21px; }
+.arena-duel .rivals { align-content: start; }
+
+/* Flush against the buttons the standings read as if the two collide. */
+#resultOverlay .lb-wrap { margin-bottom: 18px; }
+.rivals-many .board-mini .block,
+.rivals-many .board-mini .slot { height: 10px; }
+
+.board.shake { animation: nudge 0.26s ease; }
+
+/* ---------- countdown ---------- */
+
+/* [hidden] is the weakest rule in the cascade, so any class that sets
+   `display` silently outranks it and the element stays on screen. That is how
+   the countdown veil kept swallowing clicks after it "hid", and how the Start
+   button showed to guests who had no right to press it. One guard for all of
+   them, rather than chasing each new class that sets display. */
+[hidden] { display: none !important; }
+
+.countdown-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgb(var(--panel-rgb) / 0.82);
+  backdrop-filter: blur(3px);
+  z-index: 5;
+}
+.veil-num {
+  font-family: var(--font-mono);
+  font-size: clamp(64px, 18vw, 148px);
+  line-height: 1;
+  color: var(--accent);
+  text-shadow: 0 0 40px rgb(var(--accent-rgb) / 0.6);
+  margin: 0;
+  animation: veil-pop 1s ease-in-out infinite;
+}
+.veil-cap {
+  font-family: var(--font-mono);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin: 0;
+}
+@keyframes veil-pop {
+  0%, 100% { transform: scale(1);    opacity: 0.9; }
+  50%      { transform: scale(1.08); opacity: 1; }
+}
+
+.live.off i { background: #ff6470; box-shadow: none; animation: none; }
+
+@media (max-width: 900px) {
+  .arena-duel .arena-grid { grid-template-columns: 1fr; }
+  .board-mini .tube { max-width: 52px; }
+}
