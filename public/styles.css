@@ -2046,37 +2046,75 @@ a { cursor: var(--cur-target), pointer; }
   background: rgb(var(--panel-rgb) / 0.5);
 }
 
-.lobby, .room {
+.room {
   max-width: 1000px;
   margin: 0 auto 22px;
 }
 
-.lobby-grid {
+/* The ways in are a narrow rail; the list of open battles is the page. */
+.lobby {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
-  padding: 4px 2px 10px;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 760px);
+  gap: 12px;
+  justify-content: center;
+  align-items: start;
+  padding: 0 12px;
+  margin-bottom: 22px;
 }
 
-.lobby-card {
+.lobby-actions { padding-bottom: 14px; }
+.lobby-main { min-height: 340px; }
+
+.act {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) + 0.08));
-  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  gap: 9px;
+  padding: 13px 14px;
+  border-top: 1px solid var(--line-soft);
 }
-.lobby-card .btn { align-self: flex-start; }
-.lobby-card form { display: contents; }
+.act:first-of-type { border-top: 0; }
+.act form { display: contents; }
+.btn-wide { width: 100%; }
 
 .lobby-note {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12.5px;
+  line-height: 1.45;
   color: var(--ink-dim);
   margin: 0;
-  flex: 1;
 }
+
+.lobby-actions .formnote { padding: 0 14px; }
+
+/* ---------- tabs ---------- */
+
+.tabhead { gap: 0; padding-bottom: 0; }
+.tabs { display: flex; gap: 4px; flex: 1; }
+
+.tab {
+  --notch: 8px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 9px 15px;
+  cursor: pointer;
+  clip-path: polygon(var(--notch) 0, 100% 0, 100% 100%, 0 100%, 0 var(--notch));
+}
+.tab:hover { color: var(--ink); background: rgb(var(--accent-rgb) / 0.08); }
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tab.on {
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.tabpane { padding: 0 12px 12px; }
+.lb-wrap-tall { max-height: 460px; }
 
 .fld-inline {
   flex-direction: row;
@@ -2176,9 +2214,6 @@ a { cursor: var(--cur-target), pointer; }
 .hudsel-opt[aria-selected="true"]:hover { background: var(--accent); }
 
 /* ---------- open battles ---------- */
-
-.openblock { position: relative; margin-top: 6px; }
-.openblock .live { position: absolute; top: 2px; right: 2px; }
 
 .lb-open td.joincell { text-align: right; padding-right: 4px; }
 .lb-open .joinbtn { --notch: 6px; padding: 5px 12px; font-size: 11px; }
@@ -2404,6 +2439,7 @@ a { cursor: var(--cur-target), pointer; }
 /* Below the two-column width the opponents drop underneath, the same way the
    daily page stacks its panels. */
 @media (max-width: 1080px) {
+  .lobby { grid-template-columns: min(760px, 100%); }
   .battle-layout { grid-template-columns: min(760px, 100%); }
   /* Wide enough for a 4x3 board; anything narrower squeezes the tubes. */
   .rivals { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }

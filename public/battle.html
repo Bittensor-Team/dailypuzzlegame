@@ -33,23 +33,24 @@
 </p>
 
 <!-- Lobby ------------------------------------------------------------- -->
-<section class="hud lobby" id="lobby" aria-labelledby="lobbyTitle">
-  <span class="hud-hatch" aria-hidden="true"></span>
-  <header class="hud-head">
-    <h2 id="lobbyTitle">Start a battle</h2>
-    <span class="hud-tag" id="lobbyTag">fresh board, first to solve wins</span>
-  </header>
+<div class="lobby" id="lobby">
 
-  <div class="lobby-grid">
-    <div class="lobby-card">
+  <!-- Ways in, kept small: the list beside them is what people came for. -->
+  <aside class="hud lobby-actions" aria-labelledby="lobbyTitle">
+    <span class="hud-hatch" aria-hidden="true"></span>
+    <header class="hud-head">
+      <h2 id="lobbyTitle">Start a battle</h2>
+    </header>
+
+    <div class="act">
       <h3 class="lb-h3">Quick match</h3>
-      <p class="lobby-note">Paired with whoever is waiting. A brand new board is dealt for every battle.</p>
-      <button type="button" id="quickBtn" class="btn btn-primary">Find opponent</button>
+      <p class="lobby-note">Paired with whoever is waiting.</p>
+      <button type="button" id="quickBtn" class="btn btn-primary btn-wide">Find opponent</button>
     </div>
 
-    <div class="lobby-card">
+    <div class="act">
       <h3 class="lb-h3">Private room</h3>
-      <p class="lobby-note">Get a code to share. Starts by itself once the room is full.</p>
+      <p class="lobby-note">Get a code to share. Starts by itself once full.</p>
       <div class="fld fld-inline">
         <span id="sizeLabel">Players</span>
         <!-- A native <select> draws its popup with the browser's own colours,
@@ -70,10 +71,10 @@
           </ul>
         </div>
       </div>
-      <button type="button" id="createBtn" class="btn btn-primary">Create room</button>
+      <button type="button" id="createBtn" class="btn btn-primary btn-wide">Create room</button>
     </div>
 
-    <div class="lobby-card">
+    <div class="act">
       <h3 class="lb-h3">Join a room</h3>
       <p class="lobby-note">Enter the five-character code a friend sent you.</p>
       <form id="joinForm">
@@ -82,24 +83,36 @@
           <input type="text" id="joinCode" class="txt txt-code" maxlength="5" placeholder="K7F2Q"
                  autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Battle code">
         </label>
-        <button type="submit" id="joinBtn" class="btn btn-primary">Join</button>
+        <button type="submit" id="joinBtn" class="btn btn-primary btn-wide">Join</button>
       </form>
     </div>
-  </div>
 
-  <p class="formnote" id="lobbyNote" role="status"></p>
+    <p class="formnote" id="lobbyNote" role="status"></p>
+  </aside>
 
-  <div class="lb-block openblock">
-    <h3 class="lb-h3" id="openTitle">Open battles</h3>
-    <span class="live" id="openLive"><i></i>live</span>
-    <div class="lb-wrap" id="openList" aria-labelledby="openTitle"></div>
-  </div>
+  <!-- The main event: every room you can walk into, live. -->
+  <section class="hud lobby-main" aria-labelledby="openTabBtn">
+    <span class="hud-rail" aria-hidden="true"></span>
+    <header class="hud-head tabhead">
+      <div class="tabs" role="tablist" aria-label="Battles">
+        <button type="button" class="tab" id="openTabBtn" role="tab"
+                aria-selected="true" aria-controls="openPane">Open battles</button>
+        <button type="button" class="tab" id="mineTabBtn" role="tab"
+                aria-selected="false" aria-controls="minePane" tabindex="-1">My battles</button>
+      </div>
+      <span class="live" id="openLive"><i></i>live</span>
+    </header>
 
-  <div class="lb-block" id="histBlock" hidden>
-    <h3 class="lb-h3">Your recent battles</h3>
-    <div class="lb-wrap" id="battleHistory"></div>
-  </div>
-</section>
+    <div class="tabpane" id="openPane" role="tabpanel" aria-labelledby="openTabBtn">
+      <div class="lb-wrap lb-wrap-tall" id="openList"></div>
+    </div>
+
+    <div class="tabpane" id="minePane" role="tabpanel" aria-labelledby="mineTabBtn" hidden>
+      <div class="lb-wrap lb-wrap-tall" id="battleHistory"></div>
+    </div>
+  </section>
+
+</div>
 
 <!-- Waiting room ------------------------------------------------------ -->
 <section class="hud room" id="room" hidden aria-labelledby="roomTitle">

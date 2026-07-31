@@ -132,8 +132,8 @@
    'myProgress', 'solvedChip', 'rivals', 'veil', 'veilNum', 'undoBtn2', 'quitBtn',
    'resultOverlay', 'resultTitle', 'resultLine', 'resultTable', 'againBtn', 'authOverlay',
    'authForm', 'authName', 'authPass', 'authNote', 'authSubmit', 'authTitle', 'authBlurb',
-   'authSwap', 'authSwapText', 'histBlock', 'battleHistory', 'parStat', 'parVal',
-   'openList', 'openLive',
+   'authSwap', 'authSwapText', 'battleHistory', 'parStat', 'parVal',
+   'openList', 'openLive', 'openTabBtn', 'mineTabBtn', 'openPane', 'minePane',
    'arenaLive', 'modeLabel', 'footYear'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
@@ -434,6 +434,35 @@
       }).join('') + '</tbody></table>';
   }
 
+  var TABS = [
+    { btn: 'openTabBtn', pane: 'openPane' },
+    { btn: 'mineTabBtn', pane: 'minePane' }
+  ];
+
+  function selectTab(index) {
+    TABS.forEach(function (t, i) {
+      var on = i === index;
+      el[t.btn].setAttribute('aria-selected', on ? 'true' : 'false');
+      el[t.btn].tabIndex = on ? 0 : -1;
+      el[t.btn].classList.toggle('on', on);
+      el[t.pane].hidden = !on;
+    });
+    // The live dot describes the open list; on the history tab it means nothing.
+    el.openLive.hidden = index !== 0;
+    if (index === 1) loadHistory();
+  }
+
+  TABS.forEach(function (t, i) {
+    el[t.btn].addEventListener('click', function () { selectTab(i); });
+    el[t.btn].addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      var next = (i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length;
+      selectTab(next);
+      el[TABS[next].btn].focus();
+    });
+  });
+
   el.openList.addEventListener('click', function (e) {
     var btn = e.target.closest('.joinbtn');
     if (!btn) return;
@@ -712,8 +741,11 @@
     fetch('/api/battle/history?token=' + encodeURIComponent(session.token()))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
-        if (!d || !d.history.length) { el.histBlock.hidden = true; return; }
-        el.histBlock.hidden = false;
+        if (!d || !d.history.length) {
+          el.battleHistory.innerHTML =
+            '<p class="lb-empty">No finished battles yet. Win one and it shows up here.</p>';
+          return;
+        }
         el.battleHistory.innerHTML = '<table class="lb"><thead><tr>' +
           '<th>Result</th><th>Code</th><th class="moves">Moves</th><th class="tries">Time</th>' +
           '</tr></thead><tbody>' + d.history.map(function (h) {
@@ -795,6 +827,7 @@
   }
 
   theme.init();
+  selectTab(0);
   el.footYear.textContent = String(new Date().getUTCFullYear());
   show('lobby');
   paintAuth();
