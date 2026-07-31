@@ -1098,15 +1098,20 @@
       save();
     }
 
-    function renderLeaderboard() {
-      var rows = rankedResults();
-      var stats = loadStats();
-
+    /* The header describes the day on screen, not this browser's history:
+       how many people played it, how many runs they made, and the best score
+       anyone reached. */
+    function renderSummary(data) {
+      var players = data && data.total ? data.total : 0;
+      var attempts = data && data.attempts ? data.attempts : 0;
+      var best = data && data.dayBest !== null && data.dayBest !== undefined ? data.dayBest : '\u2014';
       el.lbSummary.innerHTML =
-        '<div><dt>Days solved</dt><dd>' + rows.length + '</dd></div>' +
-        '<div><dt>Streak</dt><dd>' + (stats.streak || 0) + '</dd></div>' +
-        '<div><dt>Best</dt><dd>' + (rows.length ? rows[0].moves : '\u2014') + '</dd></div>';
+        '<div><dt>Players</dt><dd>' + players + '</dd></div>' +
+        '<div><dt>Attempts</dt><dd>' + attempts + '</dd></div>' +
+        '<div><dt>Best</dt><dd>' + best + '</dd></div>';
+    }
 
+    function renderLeaderboard() {
       renderHistoryStrip();
     }
 
@@ -1296,6 +1301,7 @@
 
     function renderZone(data) {
       lastSignature = signature(data);
+      renderSummary(data);
       // Adopt the account's score for this day before anything reads storage.
       if (data && data.signedIn === true && syncResultFromServer(data.day, data.best)) {
         renderLeaderboard();
@@ -1309,7 +1315,7 @@
 
       var counts = data.counts;
       var total = data.total || 0;
-      el.zoneTag.textContent = 'players per move count';
+      el.zoneTag.textContent = 'attempts per move count';
       el.zoneTag.className = 'hud-tag';
       if (total === 0) {
         zoneMessage(viewDate === date
@@ -1337,7 +1343,7 @@
 
       // Header carries the headline percentage; the caption spells it out.
       var topPct = mine === null ? null : topPercent(data.rank, total);
-      el.zoneTag.textContent = topPct === null ? 'players per move count' : 'you are top ' + topPct + '%';
+      el.zoneTag.textContent = topPct === null ? 'attempts per move count' : 'you are top ' + topPct + '%';
       el.zoneTag.className = topPct === null ? 'hud-tag' : 'hud-tag zone-pct';
 
       el.zone.innerHTML =
@@ -1371,7 +1377,7 @@
         var to = from + binSize - 1;
         var range = binSize === 1 ? String(from) : from + '\u2013' + to;
         html += '<div class="zbar' + (k === mineBin ? ' mine' : '') + '" ' +
-          'data-tip="' + range + ' moves \u00b7 ' + bins[k] + ' player' + (bins[k] === 1 ? '' : 's') + '">' +
+          'data-tip="' + range + ' moves \u00b7 ' + bins[k] + ' attempt' + (bins[k] === 1 ? '' : 's') + '">' +
           '<div class="zfill"></div></div>';
       }
       return html;
@@ -1386,13 +1392,17 @@
 
     function captionFor(data, total, mine) {
       var when = viewDate === date ? 'today\u2019s board' : 'the ' + shortDate(viewDate) + ' board';
+      var runs = (data && data.attempts) || 0;
+      var field = total + ' player' + (total === 1 ? '' : 's') + ' \u00b7 ' +
+        runs + ' attempt' + (runs === 1 ? '' : 's');
       if (mine === null) {
-        return total + ' player' + (total === 1 ? '' : 's') + ' finished ' + when +
-          '. Solve it to place yourself on the chart.';
+        return field + ' on ' + when + '. Solve it to place yourself on the chart.';
       }
       var top = topPercent(data.rank, total);
-      return 'You: ' + mine + ' moves \u00b7 better than ' + data.betterThan + '% of ' +
-        total + ' player' + (total === 1 ? '' : 's') + ' \u00b7 top ' + top + '%';
+      // The bar highlighted is the player's best; every run is charted.
+      return 'Your best: ' + mine + ' moves \u00b7 better than ' + data.betterThan +
+        '% of ' + total + ' player' + (total === 1 ? '' : 's') + ' \u00b7 top ' + top +
+        '%  (' + field + ')';
     }
 
     function loadZone() {

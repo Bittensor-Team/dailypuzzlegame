@@ -53,7 +53,27 @@ db.exec(`
     created INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS sessions_by_player ON sessions (player);
+  /* Every accepted solve, not just a player's best. The scores table still
+     holds the best per player for the standings; this is what the score zone
+     charts. Backticks are avoided here: this sits inside a template literal. */
+  CREATE TABLE IF NOT EXISTS attempts (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    player  TEXT    NOT NULL,
+    day     TEXT    NOT NULL,
+    moves   INTEGER NOT NULL,
+    created INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS attempts_by_day ON attempts (day, moves);
 `);
+
+// Existing installs have best-per-player but no attempt history; seed one
+// attempt per recorded score so past days are not charted as empty.
+if (db.prepare('SELECT COUNT(*) AS n FROM attempts').get().n === 0) {
+  const seeded = db.prepare(
+    'INSERT INTO attempts (player, day, moves, created) SELECT player, day, moves, updated FROM scores'
+  ).run();
+  if (seeded.changes) console.log('backfilled', seeded.changes, 'attempts from existing scores');
+}
 
 // Password columns are added in place so an existing players table survives.
 const columns = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
@@ -67,6 +87,18 @@ const insertScore = db.prepare(
      updated = excluded.updated`
 );
 const selectBest = db.prepare('SELECT moves FROM scores WHERE player = ? AND day = ?');
+const insertAttempt = db.prepare(
+  'INSERT INTO attempts (player, day, moves, created) VALUES (?, ?, ?, ?)'
+);
+// Histogram source: one row per solve, so replays show up as separate bars.
+const selectAttemptCounts = db.prepare(
+  'SELECT moves, COUNT(*) AS n FROM attempts WHERE day = ? GROUP BY moves ORDER BY moves'
+);
+const selectDayTotals = db.prepare(
+  `SELECT (SELECT COUNT(*) FROM attempts WHERE day = ?1)                AS attempts,
+          (SELECT COUNT(DISTINCT player) FROM scores WHERE day = ?1)    AS players,
+          (SELECT MIN(moves) FROM scores WHERE day = ?1)                AS dayBest`
+);
 const selectCounts = db.prepare(
   'SELECT moves, COUNT(*) AS users FROM scores WHERE day = ? GROUP BY moves ORDER BY moves'
 );
@@ -228,8 +260,13 @@ function rateLimited(key, limit) {
 /* ------------------------------------------------------------------ */
 
 function distribution(day, player) {
-  const counts = selectCounts.all(day).map((r) => ({ moves: Number(r.moves), users: Number(r.users) }));
-  const total = counts.reduce((n, c) => n + c.users, 0);
+  // Standings rank on best-per-player; the chart shows every attempt.
+  const playerCounts = selectCounts.all(day).map((r) => ({ moves: Number(r.moves), users: Number(r.users) }));
+  const counts = selectAttemptCounts.all(day).map((r) => ({ moves: Number(r.moves), users: Number(r.n) }));
+  const totals = selectDayTotals.get(day);
+  const total = Number(totals.players || 0);
+  const attempts = Number(totals.attempts || 0);
+  const dayBest = totals.dayBest === null ? null : Number(totals.dayBest);
 
   let best = null;
   if (player) {
@@ -240,8 +277,8 @@ function distribution(day, player) {
   let rank = null;
   let betterThan = null;
   if (best !== null && total > 0) {
-    rank = counts.reduce((n, c) => n + (c.moves < best ? c.users : 0), 0) + 1;
-    const worse = counts.reduce((n, c) => n + (c.moves > best ? c.users : 0), 0);
+    rank = playerCounts.reduce((n, c) => n + (c.moves < best ? c.users : 0), 0) + 1;
+    const worse = playerCounts.reduce((n, c) => n + (c.moves > best ? c.users : 0), 0);
     betterThan = Math.round((100 * worse) / total);
   }
 
@@ -264,7 +301,7 @@ function distribution(day, player) {
 
   const me = player ? selectPlayer.get(player) : null;
 
-  return { day, total, counts, best, rank, betterThan, board, name: me ? me.name : null };
+  return { day, total, attempts, dayBest, counts, best, rank, betterThan, board, name: me ? me.name : null };
 }
 
 function send(res, code, body) {
@@ -419,7 +456,9 @@ const server = http.createServer(async (req, res) => {
     const previousRow = selectBest.get(player, day);
     const previous = previousRow ? Number(previousRow.moves) : null;
 
-    insertScore.run(player, day, verified, Date.now());
+    const now = Date.now();
+    insertAttempt.run(player, day, verified, now);
+    insertScore.run(player, day, verified, now);
     const dist = distribution(day, player);
 
     // Announce only genuine improvements — a repeat submission of a worse run

@@ -92,8 +92,13 @@ if (cmd === 'delete') {
   if (!row) { console.error('No account called ' + JSON.stringify(name) + '.'); process.exit(1); }
   db.prepare('DELETE FROM sessions WHERE player = ?').run(row.player);
   const scores = db.prepare('DELETE FROM scores WHERE player = ?').run(row.player);
+  // Attempts feed the score-zone histogram; leaving them behind would keep
+  // charting runs by a player who no longer exists.
+  let attempts = { changes: 0 };
+  try { attempts = db.prepare('DELETE FROM attempts WHERE player = ?').run(row.player); } catch { /* older db */ }
   db.prepare('DELETE FROM players WHERE player = ?').run(row.player);
-  console.log('Deleted ' + row.name + ' and ' + scores.changes + ' score(s).');
+  console.log('Deleted ' + row.name + ' — ' + scores.changes + ' score(s), ' +
+    attempts.changes + ' attempt(s).');
   process.exit(0);
 }
 
