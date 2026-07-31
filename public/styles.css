@@ -307,7 +307,13 @@ h1 .date {
    panel's own contents are lifted over it explicitly. */
 .game > .topbar,
 .game > .board,
-.game > .controls { position: relative; z-index: 1; }
+.game > .controls,
+.lobby-main > .hud-head,
+.lobby-main > .tabpane { position: relative; z-index: 1; }
+
+/* The lobby's map is a backdrop for a list of text, so it sits further back
+   than the puzzle panel's. */
+.lobby-main > .worldmap { opacity: 0.4; }
 
 /* ---------- theme toggle ----------
    Pinned opposite the countdown so the two corners balance, and out of the

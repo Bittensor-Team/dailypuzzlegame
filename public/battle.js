@@ -694,9 +694,22 @@
   /* Moves                                                               */
   /* ------------------------------------------------------------------ */
 
+  /* Moves are applied locally the moment they are tapped, but they must reach
+     the server in the order they were made: two requests in flight at once can
+     arrive swapped, and the server rightly rejects the second as illegal,
+     costing a move that was perfectly legal when it was played. One at a time,
+     in order — the optimistic board already keeps the screen instant. */
+  var sendChain = Promise.resolve();
+
   function sendMove(payload) {
     payload.token = session.token();
     payload.battle = view.battle;
+    sendChain = sendChain.then(function () { return sendNow(payload); },
+                               function () { return sendNow(payload); });
+    return sendChain;
+  }
+
+  function sendNow(payload) {
     return post('/api/battle/move', payload).then(function (r) {
       if (r.ok) { apply(r.data); return; }
       // A rejected move means our optimistic board drifted from the server's.
@@ -964,7 +977,11 @@
     else prompt('Copy this link', link);
   });
 
-  el.themeBtn.addEventListener('click', function () { theme.toggle(); });
+  el.themeBtn.addEventListener('click', function () {
+    theme.toggle();
+    // Canvas cannot inherit CSS, so the map is told to re-read the palette.
+    if (window.DCPMap) window.DCPMap.refresh();
+  });
 
   // Colour labels, sharing the daily puzzle's setting so the choice carries
   // across both pages.
@@ -1083,6 +1100,8 @@
   }
 
   theme.init();
+  // The same dotted map the daily puzzle draws, behind the centre panels.
+  if (window.DCPMap) window.DCPMap.start();
   selectTab(0);
   el.footYear.textContent = String(new Date().getUTCFullYear());
   show('lobby');

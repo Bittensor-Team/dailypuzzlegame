@@ -92,6 +92,7 @@
 
   <!-- The main event: every room you can walk into, live. -->
   <section class="hud lobby-main" aria-labelledby="openTabBtn">
+    <canvas class="worldmap" aria-hidden="true"></canvas>
     <span class="hud-rail" aria-hidden="true"></span>
     <header class="hud-head tabhead">
       <div class="tabs" role="tablist" aria-label="Battles">
@@ -167,6 +168,7 @@
 
     <!-- The player's own panel: the same structure as the daily puzzle. -->
     <div class="game" id="game">
+      <canvas class="worldmap" aria-hidden="true"></canvas>
       <span class="hud-hatch" aria-hidden="true"></span>
       <header class="topbar">
         <span class="brand">Battle <b id="arenaCode">&mdash;</b></span>
@@ -274,6 +276,8 @@
   <a href="privacy.html">&#9432; Privacy</a>
 </footer>
 
+<script src="earth.js"></script>
+<script src="worldmap.js"></script>
 <script src="fx.js"></script>
 <script src="battle.js"></script>
 </body>
