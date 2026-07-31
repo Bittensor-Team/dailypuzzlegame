@@ -2240,12 +2240,18 @@ a { cursor: var(--cur-target), pointer; }
 
 .battle-layout {
   display: grid;
-  grid-template-columns: minmax(0, 760px) minmax(240px, 300px);
+  grid-template-columns: minmax(0, 760px) minmax(280px, 340px);
   gap: 12px;
   justify-content: center;
   align-items: start;
   padding: 0 12px;
 }
+
+/* The daily stylesheet gives .game an order of 1 for its stacked column. That
+   ordering follows the panel here, and left the opponents sitting above the
+   puzzle once the layout stacked. Both get an explicit place instead. */
+.battle-layout > .game { order: 1; }
+.battle-layout > .rivalbox { order: 2; }
 
 .rivalbox { padding-bottom: 12px; }
 .rival-foot {
@@ -2310,20 +2316,21 @@ a { cursor: var(--cur-target), pointer; }
 
 /* An opponent's board, drawn from fill levels alone. No colour reaches the
    browser, so there is nothing here to read a solution off. */
+/* Four across, three down — the same arrangement as the player's own board,
+   so a glance at the opponent maps onto what you are looking at. */
 .board-mini {
-  gap: 4px;
-  padding: 9px 11px 0;
-  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 10px 11px 0;
 }
 .board-mini .tube {
   max-width: none;
-  gap: 2px;
-  padding: 3px;
+  gap: 3px;
+  padding: 4px;
   cursor: default;
   animation: none;
 }
 .board-mini .block,
-.board-mini .slot { height: 7px; border-radius: 3px; }
+.board-mini .slot { height: 14px; border-radius: 5px; }
 
 .block-mute {
   --c: rgb(var(--accent-rgb) / 0.45);
@@ -2388,5 +2395,6 @@ a { cursor: var(--cur-target), pointer; }
    daily page stacks its panels. */
 @media (max-width: 1080px) {
   .battle-layout { grid-template-columns: min(760px, 100%); }
-  .rivals { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  /* Wide enough for a 4x3 board; anything narrower squeezes the tubes. */
+  .rivals { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 }
