@@ -175,6 +175,29 @@
   var localMoves = 0;       // our count, including moves not yet acknowledged
   var localHistory = [];    // {from, to, count} per optimistic pour, for undo
   var watching = false;     // in this battle as a spectator, not a player
+  var currentBattle = null; // which battle the state below belongs to
+
+  /* Everything here belongs to one battle. Carrying any of it into the next
+     one showed the loser their finished board again: the reconciliation guard
+     compares the server's move count against ours, and a fresh battle starts
+     at zero, so a stale count from the last battle rejected the new board. */
+  function resetBattleState() {
+    myTubes = null;
+    selected = null;
+    boardBuilt = false;
+    tubeEls = [];
+    wasDone = [];
+    primedDone = false;
+    celebrated = false;
+    localMoves = 0;
+    localHistory = [];
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    el.resultOverlay.hidden = true;
+    el.veil.hidden = true;
+    el.myBoard.innerHTML = '';
+    el.rivals.innerHTML = '';
+    el.watchGrid.innerHTML = '';
+  }
 
   function serverNow() { return Date.now() + skew; }
 
@@ -403,6 +426,14 @@
   function apply(next) {
     var wasStatus = view ? view.status : null;
     var wasSolved = me() ? me().solved : false;
+    // A new battle starts from nothing, and this must happen before the board
+    // reconciliation below reads the move counts.
+    if (next.battle !== currentBattle) {
+      currentBattle = next.battle;
+      resetBattleState();
+      wasStatus = null;
+      wasSolved = false;
+    }
     view = next;
     // A browser clock can sit minutes away from the server's. The offset is
     // measured once per frame, at the instant it lands, and every later
@@ -952,8 +983,9 @@
     if (view && !watching) post('/api/battle/leave', { token: session.token(), battle: view.battle });
     watching = false;
     if (stream) { stream.close(); stream = null; }
-    view = null; myTubes = null; selected = null; boardBuilt = false;
-    el.resultOverlay.hidden = true;
+    view = null;
+    currentBattle = null;
+    resetBattleState();
     history.replaceState(null, '', 'battle.html');
     show('lobby');
     loadHistory();
