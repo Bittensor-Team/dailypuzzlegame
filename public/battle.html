@@ -11,6 +11,10 @@
 </head>
 <body class="battlepage">
 
+<!-- The map is the page's backdrop here, not a panel's: it sits behind every
+     screen the battle page shows. -->
+<canvas class="worldmap worldmap-page" id="earth" aria-hidden="true"></canvas>
+
 <button type="button" id="themeBtn" class="themetoggle" title="Switch theme"
         aria-label="Switch between dark and light theme">&#9789;</button>
 
@@ -92,7 +96,6 @@
 
   <!-- The main event: every room you can walk into, live. -->
   <section class="hud lobby-main" aria-labelledby="openTabBtn">
-    <canvas class="worldmap" aria-hidden="true"></canvas>
     <span class="hud-rail" aria-hidden="true"></span>
     <header class="hud-head tabhead">
       <div class="tabs" role="tablist" aria-label="Battles">
@@ -168,7 +171,6 @@
 
     <!-- The player's own panel: the same structure as the daily puzzle. -->
     <div class="game" id="game">
-      <canvas class="worldmap" aria-hidden="true"></canvas>
       <span class="hud-hatch" aria-hidden="true"></span>
       <header class="topbar">
         <span class="brand">Battle <b id="arenaCode">&mdash;</b></span>
