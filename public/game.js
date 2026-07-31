@@ -851,6 +851,16 @@
     var wasDone = [];
     var primedDone = false;   // first paint records state without flashing
 
+    /* Whether this account has finished today's board, according to the
+       server. state.won alone is not enough: it lives in this browser and is
+       cleared by Restart, so a player who solved and then tried for a better
+       score lost the battle link they had already earned. */
+    var solvedTodayOnServer = false;
+
+    function updateBattleLink() {
+      el.battleLink.hidden = !(state.won || solvedTodayOnServer);
+    }
+
     function render() {
       for (var i = 0; i < TUBE_COUNT; i++) {
         var tube = state.tubes[i];
@@ -895,8 +905,7 @@
       el.selectedLabel.textContent = state.selected === null ? 'None' : 'Tube ' + (state.selected + 1);
       el.undoBtn.disabled = state.history.length === 0;
       el.solvedChip.hidden = !state.won;
-      // Battling is what you unlock by finishing the day's puzzle.
-      el.battleLink.hidden = !state.won;
+      updateBattleLink();
     }
 
     function save() {
@@ -960,7 +969,8 @@
       }
       save();
       el.solvedChip.hidden = false;
-      el.battleLink.hidden = false;
+      solvedTodayOnServer = true;
+      updateBattleLink();
       fx.solve();
       var outcome = recordWin(date, state.moves, Date.now());
       var stats = outcome.stats;
@@ -1240,6 +1250,12 @@
       else if (data && data.signedIn === false) { session.clear(); playerName = null; setGate(true); }
       renderRank(data);
       renderPlayerBoard(data);
+      // best is this player's score for the day being shown; having one at all
+      // means they finished it.
+      if (data && data.day === utcToday()) {
+        solvedTodayOnServer = data.best !== null && data.best !== undefined;
+        updateBattleLink();
+      }
       if (!data || !data.counts) { zoneMessage('Scoreboard unavailable.'); clearRank('offline'); return; }
 
       var counts = data.counts;
