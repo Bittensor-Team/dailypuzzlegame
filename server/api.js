@@ -75,20 +75,48 @@ if (db.prepare('SELECT COUNT(*) AS n FROM attempts').get().n === 0) {
   if (seeded.changes) console.log('backfilled', seeded.changes, 'attempts from existing scores');
 }
 
+// Elapsed time is added in place so existing rows survive. Older scores have
+// no time recorded; they sort last among equal move counts rather than winning
+// ties by accident.
+for (const [table, col] of [['scores', 'ms'], ['attempts', 'ms']]) {
+  const cols = db.prepare('PRAGMA table_info(' + table + ')').all().map((c) => c.name);
+  if (!cols.includes(col)) db.exec('ALTER TABLE ' + table + ' ADD COLUMN ' + col + ' INTEGER');
+}
+
+/* When the server handed this player today's board. Elapsed time cannot be
+   proved the way a move count can, so a claimed duration is capped at the
+   window the server actually observed. */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS issued (
+    player TEXT NOT NULL,
+    day    TEXT NOT NULL,
+    at     INTEGER NOT NULL,
+    PRIMARY KEY (player, day)
+  );
+`);
+
 // Password columns are added in place so an existing players table survives.
 const columns = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
 if (!columns.includes('pass_hash')) db.exec('ALTER TABLE players ADD COLUMN pass_hash TEXT');
 if (!columns.includes('pass_salt')) db.exec('ALTER TABLE players ADD COLUMN pass_salt TEXT');
 
+const NO_TIME = 1e12;   // sorts unknown times last without special-casing
+
 const insertScore = db.prepare(
-  `INSERT INTO scores (player, day, moves, updated) VALUES (?, ?, ?, ?)
+  `INSERT INTO scores (player, day, moves, ms, updated) VALUES (?, ?, ?, ?, ?)
    ON CONFLICT (player, day) DO UPDATE SET
-     moves = MIN(scores.moves, excluded.moves),
-     updated = excluded.updated`
+     moves = excluded.moves, ms = excluded.ms, updated = excluded.updated
+   WHERE excluded.moves < scores.moves
+      OR (excluded.moves = scores.moves
+          AND COALESCE(excluded.ms, ${NO_TIME}) < COALESCE(scores.ms, ${NO_TIME}))`
 );
-const selectBest = db.prepare('SELECT moves FROM scores WHERE player = ? AND day = ?');
+const recordIssued = db.prepare(
+  'INSERT INTO issued (player, day, at) VALUES (?, ?, ?) ON CONFLICT (player, day) DO NOTHING'
+);
+const selectIssued = db.prepare('SELECT at FROM issued WHERE player = ? AND day = ?');
+const selectBest = db.prepare('SELECT moves, ms FROM scores WHERE player = ? AND day = ?');
 const insertAttempt = db.prepare(
-  'INSERT INTO attempts (player, day, moves, created) VALUES (?, ?, ?, ?)'
+  'INSERT INTO attempts (player, day, moves, ms, created) VALUES (?, ?, ?, ?, ?)'
 );
 // Histogram source: one row per solve, so replays show up as separate bars.
 const selectAttemptCounts = db.prepare(
@@ -103,11 +131,22 @@ const selectCounts = db.prepare(
   'SELECT moves, COUNT(*) AS users FROM scores WHERE day = ? GROUP BY moves ORDER BY moves'
 );
 const selectBoard = db.prepare(
-  `SELECT s.player, s.moves, p.name
+  `SELECT s.player, s.moves, s.ms, p.name
      FROM scores s JOIN players p ON p.player = s.player
     WHERE s.day = ?
-    ORDER BY s.moves ASC, s.updated ASC
+    ORDER BY s.moves ASC, COALESCE(s.ms, ${NO_TIME}) ASC, s.updated ASC
     LIMIT 100`
+);
+// Rank counts everyone strictly ahead on (moves, then time).
+const selectAhead = db.prepare(
+  `SELECT COUNT(*) AS n FROM scores
+    WHERE day = ?1
+      AND (moves < ?2 OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) < ?3))`
+);
+const selectBehind = db.prepare(
+  `SELECT COUNT(*) AS n FROM scores
+    WHERE day = ?1
+      AND (moves > ?2 OR (moves = ?2 AND COALESCE(ms, ${NO_TIME}) > ?3))`
 );
 const selectByName = db.prepare('SELECT * FROM players WHERE name_lower = ?');
 const selectPlayer = db.prepare('SELECT player, name FROM players WHERE player = ?');
@@ -269,39 +308,44 @@ function distribution(day, player) {
   const dayBest = totals.dayBest === null ? null : Number(totals.dayBest);
 
   let best = null;
+  let bestMs = null;
   if (player) {
     const row = selectBest.get(player, day);
-    if (row) best = Number(row.moves);
+    if (row) { best = Number(row.moves); bestMs = row.ms === null ? null : Number(row.ms); }
   }
 
   let rank = null;
   let betterThan = null;
   if (best !== null && total > 0) {
-    rank = playerCounts.reduce((n, c) => n + (c.moves < best ? c.users : 0), 0) + 1;
-    const worse = playerCounts.reduce((n, c) => n + (c.moves > best ? c.users : 0), 0);
-    betterThan = Math.round((100 * worse) / total);
+    const key = bestMs === null ? NO_TIME : bestMs;
+    rank = Number(selectAhead.get(day, best, key).n) + 1;
+    betterThan = Math.round((100 * Number(selectBehind.get(day, best, key).n)) / total);
   }
 
   // Competition ranking: equal scores share the better rank, and the next
   // distinct score skips ahead (1, 1, 3). This has to match the rank shown on
   // the dial, which is computed the same way — otherwise a tied leader sees
   // "#1" beside a silver badge.
-  let lastMoves = null;
+  // Two players share a rank only when both moves and time match.
+  let lastKey = null;
   let lastRank = 0;
   const board = selectBoard.all(day).map((r, i) => {
     const moves = Number(r.moves);
-    if (moves !== lastMoves) { lastRank = i + 1; lastMoves = moves; }
+    const ms = r.ms === null ? null : Number(r.ms);
+    const key = moves + ':' + (ms === null ? 'x' : ms);
+    if (key !== lastKey) { lastRank = i + 1; lastKey = key; }
     return {
       rank: lastRank,
       name: r.name,
       moves,
+      ms,
       you: player ? r.player === player : false,
     };
   });
 
   const me = player ? selectPlayer.get(player) : null;
 
-  return { day, total, attempts, dayBest, counts, best, rank, betterThan, board, name: me ? me.name : null };
+  return { day, total, attempts, dayBest, counts, best, bestMs, rank, betterThan, board, name: me ? me.name : null };
 }
 
 function send(res, code, body) {
@@ -431,6 +475,10 @@ const server = http.createServer(async (req, res) => {
     const day = url.searchParams.get('date') || '';
     if (!plausibleDay(day)) return send(res, 400, { error: 'bad date' });
     if (day > maxOpenDay()) return send(res, 403, { error: 'that board is not open yet' });
+    // Remember when this player first saw the board, so a claimed solve time
+    // can be capped at the window the server actually observed.
+    const viewer = playerForToken(url.searchParams.get('token') || '');
+    if (viewer) recordIssued.run(viewer, day, Date.now());
     return send(res, 200, { day, tubes: boardFor(day) });
   }
 
@@ -457,8 +505,22 @@ const server = http.createServer(async (req, res) => {
     const previous = previousRow ? Number(previousRow.moves) : null;
 
     const now = Date.now();
-    insertAttempt.run(player, day, verified, now);
-    insertScore.run(player, day, verified, now);
+
+    /* Elapsed time is reported by the browser and cannot be proved the way the
+       move count is. Two bounds keep it honest-ish: it can never exceed the
+       window since the server issued the board, and it cannot be faster than a
+       floor per move that no human input could beat. */
+    const issuedRow = selectIssued.get(player, day);
+    const window = issuedRow ? now - Number(issuedRow.at) : null;
+    const floor = verified * 150;
+    let ms = Number.isFinite(body.ms) && body.ms > 0 ? Math.round(body.ms) : null;
+    if (ms !== null) {
+      if (window !== null) ms = Math.min(ms, window);
+      ms = Math.max(ms, floor);
+    }
+
+    insertAttempt.run(player, day, verified, ms, now);
+    insertScore.run(player, day, verified, ms, now);
     const dist = distribution(day, player);
 
     // Announce only genuine improvements — a repeat submission of a worse run

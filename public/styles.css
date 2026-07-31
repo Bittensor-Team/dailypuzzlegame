@@ -591,7 +591,7 @@ h1 .date {
 }
 .gauge-center b {
   font-family: var(--font-mono);
-  font-size: 34px;
+  font-size: 40px;
   font-weight: 700;
   line-height: 1;
   color: var(--accent);
@@ -1955,8 +1955,7 @@ a { cursor: var(--cur-target), pointer; }
      to 150px inside a 134px row and pushed the dial through the panel edge. */
   .hud-rank .gauge { padding: 2px; min-width: 0; min-height: 0; }
   .hud-rank .gauge-svg { width: 112px; height: 112px; max-height: 100%; }
-  .hud-rank .gauge-center b { font-size: 24px; }
-  .hud-rank .gauge-center span { font-size: 8px; }
+  .hud-rank .gauge-center b { font-size: 30px; }
 
   /* Score zone: the distribution plus where you stand. */
   .hud-zone #zone { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; min-height: 0; }

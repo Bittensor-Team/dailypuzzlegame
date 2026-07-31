@@ -626,7 +626,8 @@
 
     // The board is dealt by the server. Generating it here would mean shipping
     // the generator — and with it, every future puzzle — to every visitor.
-    fetch('/api/board?date=' + encodeURIComponent(date))
+    fetch('/api/board?date=' + encodeURIComponent(date) +
+          '&token=' + encodeURIComponent(store.get('dcp:token', '') || ''))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (b) {
         if (!b || !Array.isArray(b.tubes) || b.tubes.length !== TUBE_COUNT) {
@@ -686,7 +687,6 @@
       zoneTag: document.getElementById('zoneTag'),
       gaugeFill: document.getElementById('gaugeFill'),
       rankValue: document.getElementById('rankValue'),
-      rankOf: document.getElementById('rankOf'),
       rankTag: document.getElementById('rankTag'),
       rankBest: document.getElementById('rankBest'),
       rankTries: document.getElementById('rankTries'),
@@ -725,7 +725,11 @@
       won: false,
       // The sequence of pours, replayed by the server to verify a score.
       moveLog: [],
-      submitted: false
+      submitted: false,
+      // Timing runs from the first move to the winning one, so a board left
+      // open in a background tab does not count against the player.
+      startedAt: null,
+      elapsedMs: null
     };
 
     var saved = store.get(progressKey, null);
@@ -735,6 +739,8 @@
       state.won = !!saved.won;
       state.moveLog = Array.isArray(saved.moveLog) ? saved.moveLog : [];
       state.submitted = !!saved.submitted;
+      state.startedAt = typeof saved.startedAt === 'number' ? saved.startedAt : null;
+      state.elapsedMs = typeof saved.elapsedMs === 'number' ? saved.elapsedMs : null;
     }
 
     if (store.get('dcp:labels', false)) {
@@ -871,7 +877,7 @@
           if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
           var rec = store.get(key, null);
           if (rec && rec.won && Array.isArray(rec.moveLog) && rec.moveLog.length > 0) {
-            pending.push({ day: day, moves: rec.moveLog });
+            pending.push({ day: day, moves: rec.moveLog, ms: rec.elapsedMs || null });
           }
         }
       } catch (e) { /* storage unavailable */ }
@@ -885,7 +891,7 @@
         fetch('/api/scores', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: token, date: item.day, moves: item.moves })
+          body: JSON.stringify({ token: token, date: item.day, moves: item.moves, ms: item.ms })
         }).then(next, next);
       })();
     }
@@ -998,7 +1004,9 @@
         moves: state.moves,
         won: state.won,
         moveLog: state.moveLog,
-        submitted: state.submitted
+        submitted: state.submitted,
+        startedAt: state.startedAt,
+        elapsedMs: state.elapsedMs
       });
     }
 
@@ -1033,6 +1041,7 @@
       state.history.push({ tubes: clone(state.tubes) });
       if (state.history.length > 500) state.history.shift();
 
+      if (state.startedAt === null) state.startedAt = Date.now();
       pour(state.tubes, from, index);
       state.moveLog.push({ from: from, to: index });
       state.moves += 1;
@@ -1045,6 +1054,9 @@
 
     function win() {
       state.won = true;
+      if (state.startedAt !== null && state.elapsedMs === null) {
+        state.elapsedMs = Date.now() - state.startedAt;
+      }
       save();
       el.solvedChip.hidden = false;
       fx.solve();
@@ -1092,6 +1104,8 @@
       state.won = false;
       state.moveLog = [];
       state.submitted = false;
+      state.startedAt = null;
+      state.elapsedMs = null;
       wasDone = [];
       el.winOverlay.hidden = true;
       render();
@@ -1179,6 +1193,15 @@
 
     var BOARD_LIMIT = 100;
 
+    // Times are short; minutes and seconds read better than a raw duration.
+    function formatMs(ms) {
+      if (ms === null || ms === undefined) return '—';
+      var total = Math.round(ms / 1000);
+      var m = Math.floor(total / 60);
+      var sec = total % 60;
+      return m > 0 ? m + 'm ' + (sec < 10 ? '0' : '') + sec + 's' : sec + 's';
+    }
+
     var CROWN = 'M2 8.4l4.6 3.4L12 3.6l5.4 8.2L22 8.4 20.2 19H3.8L2 8.4z';
     var CUP = 'M6 3h12v3.2A6 6 0 0 1 13 12.9V16h3.2v2.2H7.8V16H11v-3.1A6 6 0 0 1 6 6.2V3z';
 
@@ -1210,7 +1233,7 @@
         return;
       }
       var html = '<table class="lb"><thead><tr>' +
-        '<th>#</th><th>Player</th><th class="moves">Moves</th>' +
+        '<th>#</th><th>Player</th><th class="moves">Moves</th><th class="tries">Time</th>' +
         '</tr></thead><tbody>';
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
@@ -1219,7 +1242,8 @@
           '<td class="rank">' + rankBadge(r.rank) + r.rank + '</td>' +
           '<td class="date">' + (r.name ? esc(r.name) : '<span class="anon">anonymous</span>') +
           (r.you ? ' <span class="pb">you</span>' : '') + '</td>' +
-          '<td class="moves">' + r.moves + '</td></tr>';
+          '<td class="moves">' + r.moves + '</td>' +
+          '<td class="tries">' + formatMs(r.ms) + '</td></tr>';
       }
       html += '</tbody></table>';
       if (all.length > BOARD_LIMIT) {
@@ -1236,7 +1260,6 @@
 
     function clearRank(tag) {
       el.rankValue.textContent = '—';
-      el.rankOf.textContent = 'no data';
       el.rankTag.textContent = tag;
       el.gaugeFill.style.strokeDasharray = '0 ' + (2 * Math.PI * 49);
       el.rankBest.textContent = '—';
@@ -1256,12 +1279,12 @@
 
       if (mine === null) {
         el.rankValue.textContent = '—';
-        el.rankOf.textContent = total ? 'of ' + total + ' players' : 'not solved yet';
         el.rankTag.textContent = total ? 'awaiting your solve' : 'standby';
         el.gaugeFill.style.strokeDasharray = '0 ' + GAUGE_C;
       } else {
+        // The dial shows the rank and nothing else; the field size lives in
+        // the leaderboard header now.
         el.rankValue.textContent = '#' + data.rank;
-        el.rankOf.textContent = 'of ' + total + ' player' + (total === 1 ? '' : 's');
         el.rankTag.textContent = 'locked in';
         // The ring reads as "share of the field you are ahead of".
         var frac = pct === null ? 0 : Math.max(0, Math.min(100, pct)) / 100;
@@ -1480,7 +1503,7 @@
       fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: session.token(), date: date, moves: saved.moveLog })
+        body: JSON.stringify({ token: session.token(), date: date, moves: saved.moveLog, ms: saved.elapsedMs })
       })
         .then(function (r) { return r.json(); })
         .then(function (res) { if (res && res.accepted) renderZone(res); })
@@ -1545,7 +1568,7 @@
       fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: session.token(), date: date, moves: state.moveLog })
+        body: JSON.stringify({ token: session.token(), date: date, moves: state.moveLog, ms: state.elapsedMs })
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
