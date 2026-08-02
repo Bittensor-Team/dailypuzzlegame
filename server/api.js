@@ -352,6 +352,17 @@ function distribution(day, player) {
   return { day, total, attempts, dayBest, counts, best, bestMs, rank, betterThan, board, name: me ? me.name : null };
 }
 
+/* The Slack bot reads battle data and the battle engine announces to Slack, so
+   one of them has to be built first. The bridge is an object both share: Slack
+   holds the reference, and the engine fills it in below. */
+const battleBridge = { ranking: () => [], live: () => [] };
+
+const slack = require('./slack.js')({
+  distribution,
+  today: maxOpenDay,
+  battles: battleBridge,
+});
+
 const battles = require('./battle.js')({
   db,
   game,
@@ -360,7 +371,11 @@ const battles = require('./battle.js')({
     const row = selectPlayer.get(player);
     return row ? row.name : null;
   },
+  announce: (result) => slack.announceBattle(result),
 });
+
+battleBridge.ranking = battles.ranking;
+battleBridge.live = battles.live;
 
 function send(res, code, body) {
   const payload = JSON.stringify(body);
@@ -404,9 +419,15 @@ const server = http.createServer(async (req, res) => {
 
   const post = req.method === 'POST';
   let body = {};
+  let raw = '';
   if (post) {
-    try { body = JSON.parse((await readBody(req)) || '{}'); }
-    catch { return send(res, 400, { error: 'bad json' }); }
+    raw = await readBody(req);
+    /* Slack signs the bytes it sent, so its body must reach the verifier
+       untouched — and it is form-encoded, not JSON. */
+    if (url.pathname.indexOf('/api/slack/') !== 0) {
+      try { body = JSON.parse(raw || '{}'); }
+      catch { return send(res, 400, { error: 'bad json' }); }
+    }
   }
 
   if (req.method === 'GET' && url.pathname === '/api/health') {
@@ -415,6 +436,9 @@ const server = http.createServer(async (req, res) => {
 
   // Live duels and multiplayer races, on their own freshly dealt boards.
   if (battles.handle(req, res, url, body, send)) return;
+
+  // The Slack slash command, which verifies its own signature.
+  if (slack.handle(req, res, url, raw, send)) return;
 
   /* -- accounts -- */
 
@@ -551,7 +575,7 @@ const server = http.createServer(async (req, res) => {
     // would otherwise spam the channel.
     if (previous === null || verified < previous) {
       const me = selectPlayer.get(player);
-      telegram.send({
+      const card = {
         name: me ? me.name : 'A player',
         moves: verified,
         rank: dist.rank,
@@ -559,7 +583,9 @@ const server = http.createServer(async (req, res) => {
         day,
         previous,
         board: dist.board,
-      });
+      };
+      telegram.send(card);
+      slack.announceSolve(card);
     }
 
     return send(res, 200, Object.assign({ accepted: verified, signedIn: true }, dist));

@@ -31,7 +31,7 @@ const OPEN_TTL_MS = 30 * 60e3;  // an unstarted room is swept after this
 const GONE_MS = 45e3;           // no socket for this long counts as departed
 const HEARTBEAT_MS = 20e3;      // keeps proxies from closing an idle stream
 
-module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
+module.exports = function createBattles({ db, game, playerForToken, nameOf, announce }) {
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS battles (
@@ -339,6 +339,18 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     q.finish.run(room.ended, room.winner, room.id);
     broadcast(room);
     broadcastLobby();
+
+    // Fire-and-forget: a slow chat service must not hold up the result.
+    if (announce) {
+      const seat = room.winner ? room.seats.get(room.winner) : null;
+      announce({
+        code: room.code,
+        winner: seat ? seat.name : null,
+        players: [...finished, ...rest].map((p) => ({
+          name: p.name, place: p.place, moves: p.moves, ms: p.ms, solved: p.done,
+        })),
+      });
+    }
     // Leave the room up briefly so late frames and the result screen land.
     setTimeout(() => rooms.delete(room.id), 60e3).unref?.();
   }
@@ -788,5 +800,13 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf }) {
     }
   }
 
-  return { handle };
+  /* ranking and live are read by the Slack bot as well as the HTTP routes, so
+     they are exposed rather than duplicated as a second set of queries. */
+  return {
+    handle,
+    ranking: () => q.ranking.all().map((r) => ({
+      name: r.name, wins: Number(r.wins), played: Number(r.played),
+    })),
+    live: liveList,
+  };
 };
