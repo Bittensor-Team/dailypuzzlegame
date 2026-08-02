@@ -741,10 +741,14 @@ h1 .date {
   font-weight: 700;
   color: var(--ink);
   white-space: nowrap;
-  /* Last in the row, so it holds the right edge. A minimum width stops the
-     header twitching as the label goes from "None" to "Tube 10". */
+  /* Last in the row, so it holds the right edge, and wide enough for the
+     longest reading it can show. "Selected: Tube 12" is 17 monospace
+     characters plus the bar's 0.08em letter-spacing on each — derived rather
+     than guessed, so it holds if the font size changes. One spare character
+     of slack. Without it the label grew as you selected and shoved the goal
+     chip sideways. */
   order: 2;
-  min-width: 9.5em;
+  min-width: calc(18ch + 1.5em);
   text-align: right;
 }
 .stat-sel b { color: var(--accent); }
