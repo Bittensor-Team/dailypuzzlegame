@@ -717,6 +717,37 @@ h1 .date {
   flex-wrap: wrap;
   min-width: 0;
 }
+
+/* The selection is the one reading that changes while you play, so it sits at
+   the end of the header where the eye returns, not buried among the stats. */
+.bar-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  min-width: 0;
+  margin-left: auto;   /* for the battle page's plain flex header */
+}
+/* Each part is pinned to its own column. Without this the battle link's
+   `hidden` state changes auto-placement: with only two children in flow, the
+   right-hand group slid into the middle column and sat mid-header. */
+.topbar-3up > .bar-left { grid-column: 1; }
+.topbar-3up > .battle-cta { grid-column: 2; }
+.topbar-3up > .bar-right { grid-column: 3; justify-self: end; margin-left: 0; }
+.bar-right .goal { margin-left: 0; }
+
+.stat-sel {
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  /* Last in the row, so it holds the right edge. A minimum width stops the
+     header twitching as the label goes from "None" to "Tube 10". */
+  order: 2;
+  min-width: 9.5em;
+  text-align: right;
+}
+.stat-sel b { color: var(--accent); }
 .topbar .battle-cta {
   justify-self: center;
   /* The panel's chamfer forces a big left padding, so the grid's content box

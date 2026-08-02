@@ -175,9 +175,11 @@
       <header class="topbar">
         <span class="brand">Battle <b id="arenaCode">&mdash;</b></span>
         <span class="stat">Moves: <b id="myMoves">0</b></span>
-        <span class="stat">Selected: <b id="mySelected">None</b></span>
         <span class="solved-chip" id="solvedChip" hidden>&#10003; Solved</span>
-        <span class="goal" id="parStat" hidden>Par: <b id="parVal">&mdash;</b></span>
+        <span class="bar-right">
+          <span class="goal" id="parStat" hidden>Par: <b id="parVal">&mdash;</b></span>
+          <span class="stat stat-sel">Selected: <b id="mySelected">None</b></span>
+        </span>
       </header>
 
       <main class="board" id="myBoard" aria-label="Your board"></main>
