@@ -81,7 +81,15 @@ expose, so the command stays off until it is set.
 Everything except `share` is ephemeral — only the person who typed it sees the
 answer, so checking the score does not interrupt the channel.
 
-## 4. Apply
+## 4. Check the hookup
+
+```sh
+node scripts/slack-test.js
+```
+
+Prints what is configured and posts a connection check to the channel.
+
+## 5. Apply
 
 ```sh
 sudo nano /etc/dailycolorpuzzle.env     # add the settings above
@@ -97,6 +105,22 @@ pm2 logs dcp-api --lines 20
 
 A misconfigured Slack logs a line and is otherwise ignored — a slow or broken
 Slack can never delay or fail a player's score submission.
+
+---
+
+## Current state
+
+Installed on 3 Aug 2026 for the **QuitBoat** workspace, bot user
+`dailycolorpuzzle`:
+
+* Announcements — **on**, via the incoming webhook.
+* `/puzzle` — **off**, waiting on `SLACK_SIGNING_SECRET`.
+
+The bot token that came with the app carries only the `incoming-webhook`
+scope, so `chat.postMessage` would be refused; posting goes through the
+webhook, which is the path this module prefers anyway. The token is not
+stored — add `chat:write` and a `SLACK_CHANNEL` only if you later want the
+bot to post as a member rather than through the webhook.
 
 ---
 

@@ -191,6 +191,20 @@ function post(message) {
     .finally(() => clearTimeout(timer));
 }
 
+/* A connection check that reads sensibly in the channel, so verifying the
+   hookup does not leave a fake score behind. */
+function ping() {
+  return post({
+    text: 'Daily Color Puzzle is connected',
+    blocks: [
+      section('✅ *Daily Color Puzzle is connected.*\nSolves and battle results will be posted here.'),
+      context('Try `/puzzle` for the standings, `/puzzle top` for the battle leaderboard, ' +
+        '`/puzzle live` for battles in progress.'),
+      link(),
+    ],
+  });
+}
+
 function announceSolve(payload) { return post(composeSolve(payload)); }
 function announceBattle(payload) { return post(composeBattle(payload)); }
 
@@ -328,7 +342,7 @@ module.exports = function createSlack({ distribution, today, battles }) {
   }
 
   return {
-    handle, announceSolve, announceBattle, status, reload, siteUrl,
+    handle, announceSolve, announceBattle, ping, status, reload, siteUrl,
     composeSolve, composeBattle, verify, configPath: CONFIG_PATH,
   };
 };
