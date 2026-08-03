@@ -108,6 +108,72 @@ Slack can never delay or fail a player's score submission.
 
 ---
 
+## Public distribution (installing into other workspaces)
+
+Slack's *Enable Features & Functionality* screen lists six things. **You do not
+need all six.** What this app actually uses:
+
+| Feature | Needed? | Why |
+| --- | --- | --- |
+| **Bots** | yes | The app posts and answers as a bot user |
+| **Permissions** | yes | Scopes `commands` and `incoming-webhook` |
+| **Incoming Webhooks** | yes | Each install gets its own channel to post into |
+| **Slash Commands** | yes | `/puzzle` |
+| **Event Subscriptions** | recommended | Only to hear `app_uninstalled`, so a removed workspace stops being posted to |
+| **Interactive Components** | **no** | Our buttons are plain links to the site; nothing posts back to us |
+
+The real requirement is **OAuth** — a workspace clicks *Add to Slack*, Slack
+sends a code, and the server trades it for that workspace's own webhook and bot
+token. That is built: `/api/slack/install`, `/api/slack/callback`, and a
+`slack_installs` table holding one row per workspace.
+
+The signing secret does **not** change per install — it belongs to the app — so
+one `SLACK_SIGNING_SECRET` verifies `/puzzle` from every workspace.
+
+### Settings
+
+1. **Basic Information → App Credentials**: copy the **Client ID** and
+   **Client Secret**.
+
+   ```
+   SLACK_CLIENT_ID=...
+   SLACK_CLIENT_SECRET=...
+   ```
+
+2. **OAuth & Permissions → Redirect URLs**: add
+   `https://puzzle.landready.site/api/slack/callback` and save.
+
+3. **OAuth & Permissions → Bot Token Scopes**: `commands`, `incoming-webhook`.
+
+4. **Event Subscriptions** → **On**. Request URL:
+   `https://puzzle.landready.site/api/slack/events` — Slack verifies it by
+   asking the server to echo a challenge, which it does. Then **Subscribe to
+   bot events** → add `app_uninstalled`.
+
+5. **Manage Distribution** → work through the checklist → **Activate Public
+   Distribution**.
+
+### The install link
+
+```
+https://puzzle.landready.site/api/slack/install
+```
+
+Send that to anyone, or put it behind an *Add to Slack* button. It redirects to
+Slack's consent screen and lands back on a confirmation page. Every install is
+announced to independently; removing the app in Slack deletes the row.
+
+`node scripts/slack-test.js` reports how many workspaces are installed.
+
+### Directory listing (optional)
+
+Public distribution lets anyone install by link. Getting *listed* in the App
+Directory is a separate submission with a review — it wants a support URL, a
+privacy policy (`/privacy.html` is live), screenshots and a description. Not
+required to share the link.
+
+---
+
 ## Current state
 
 Installed on 3 Aug 2026 for the **QuitBoat** workspace, bot user
@@ -115,6 +181,7 @@ Installed on 3 Aug 2026 for the **QuitBoat** workspace, bot user
 
 * Announcements — **on**, via the incoming webhook.
 * `/puzzle` — **off**, waiting on `SLACK_SIGNING_SECRET`.
+* Installs — **off**, waiting on `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`.
 
 The bot token that came with the app carries only the `incoming-webhook`
 scope, so `chat.postMessage` would be refused; posting goes through the

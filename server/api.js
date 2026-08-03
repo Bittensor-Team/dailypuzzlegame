@@ -358,6 +358,7 @@ function distribution(day, player) {
 const battleBridge = { ranking: () => [], live: () => [] };
 
 const slack = require('./slack.js')({
+  db,
   distribution,
   today: maxOpenDay,
   battles: battleBridge,
