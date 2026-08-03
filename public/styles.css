@@ -1991,6 +1991,35 @@ a { cursor: var(--cur-target), pointer; }
 :root[data-theme="light"] .overlay { background: rgb(233 241 248 / 0.86); }
 :root[data-theme="light"] .block::before { background: rgb(255 255 255 / 0.5); }
 
+/* ---------- about ----------
+   Prose, not instrumentation: a readable measure and quiet chrome, so it sits
+   under the game without competing with it. */
+
+.about {
+  width: min(760px, 100%);
+  margin: 4px auto 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line-soft);
+  background: rgb(var(--panel-rgb) / calc(var(--panel-alpha) * 0.7));
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+}
+.about h2 {
+  margin: 0 0 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.about p {
+  margin: 0;
+  max-width: 68ch;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 760px) {
