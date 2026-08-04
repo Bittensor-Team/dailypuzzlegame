@@ -140,7 +140,7 @@
 
   var el = {};
   ['themeBtn', 'whoamiChip', 'lobby', 'lobbyNote', 'quickBtn', 'createBtn', 'sizeSel',
-   'joinForm', 'joinCode', 'room', 'roomCode', 'roomTag', 'roster', 'roomNote', 'startBtn',
+   'joinForm', 'joinCode', 'soloBtn', 'room', 'roomCode', 'roomTag', 'roster', 'roomNote', 'startBtn',
    'leaveBtn', 'copyLinkBtn', 'arena', 'arenaCode', 'myMoves', 'mySelected', 'myBoard',
    'myProgress', 'solvedChip', 'rivals', 'veil', 'veilNum', 'undoBtn2', 'quitBtn',
    'resultOverlay', 'resultTitle', 'resultLine', 'resultTable', 'againBtn', 'authOverlay',
@@ -362,7 +362,7 @@
 
     // Finishing does not end the battle any more, so the footer says where you
     // came and who is still out there.
-    if (mine.solved && view.status === 'live') {
+    if (mine.solved && view.status === 'live' && view.mode !== 'solo') {
       var racing = view.players.filter(function (p) { return !p.solved && !p.left; }).length;
       el.myProgress.innerHTML = 'Finished <b>' + ordinal(mine.place) + '</b> in <b>' +
         mine.moves + '</b> moves &middot; ' +
@@ -373,6 +373,8 @@
     el.arena.classList.toggle('is-waiting', !!mine.solved && view.status === 'live');
     if (view.par) { el.parStat.hidden = false; el.parVal.textContent = String(view.par); }
 
+    var solo = view.mode === 'solo';
+    el.arena.classList.toggle('is-solo', solo);
     var rivals = view.players.filter(function (p) { return !p.you; });
     el.rivals.innerHTML = rivals.map(rivalHTML).join('');
     paintStyles(el.rivals);
@@ -511,6 +513,22 @@
       if (view.players[i].player === view.winner) winner = view.players[i];
     }
     var iWon = mine && view.winner === mine.player;
+    if (view.mode === 'solo') {
+      el.resultTitle.textContent = mine && mine.solved ? 'Solved' : 'Gave up';
+      el.resultLine.textContent = mine && mine.solved
+        ? mine.moves + ' moves in ' + formatMs(mine.ms) +
+          (view.par ? ' \u00b7 par is ' + view.par : '')
+        : 'No finish this time.';
+      var tone = !mine || !mine.solved ? 'steel'
+        : view.par && mine.moves <= view.par ? 'gold'
+        : view.par && mine.moves <= view.par + 5 ? 'silver' : 'bronze';
+      el.resultEmblem.setAttribute('class', 'emblem emblem-' + tone);
+      el.emblemPlace.textContent = mine && mine.solved ? String(mine.moves) : '\u2014';
+      el.resultTable.innerHTML = '';
+      el.resultOverlay.hidden = false;
+      return;
+    }
+
     el.resultTitle.textContent = iWon ? 'You win'
       : mine && mine.solved ? 'Finished ' + ordinal(mine.place) : 'Battle over';
     // textContent escapes on its own; running esc() here would show &amp;.
@@ -956,6 +974,11 @@
     connect(result.data.battle);
   }
 
+  el.soloBtn.addEventListener('click', function () {
+    note(el.lobbyNote, 'Dealing a board\u2026');
+    post('/api/battle/solo', { token: session.token() }).then(enter);
+  });
+
   el.quickBtn.addEventListener('click', function () {
     note(el.lobbyNote, 'Looking for an opponent…');
     post('/api/battle/quick', { token: session.token() }).then(enter);
@@ -1055,7 +1078,9 @@
           '<th>Result</th><th>Code</th><th class="moves">Moves</th><th class="tries">Time</th>' +
           '</tr></thead><tbody>' + d.history.map(function (h) {
             return '<tr class="' + (h.won ? 'me' : '') + '">' +
-              '<td class="date">' + (h.won ? 'Won' : '#' + (h.place || '—')) + '</td>' +
+              // A solo run has nobody to beat, so calling it a win would be a lie.
+              '<td class="date">' + (h.mode === 'solo' ? 'Solo'
+                : h.won ? 'Won' : '#' + (h.place || '—')) + '</td>' +
               '<td class="date">' + esc(h.code) + '</td>' +
               '<td class="moves">' + h.moves + '</td>' +
               '<td class="tries">' + formatMs(h.ms) + '</td></tr>';

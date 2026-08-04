@@ -2419,6 +2419,11 @@ a { cursor: var(--cur-target), pointer; }
 .battle-layout > .game { order: 1; }
 .battle-layout > .rivalbox { order: 2; }
 
+/* Single play has no opponent, so the puzzle takes the whole width rather
+   than leaving a column of nothing beside it. */
+.is-solo .battle-layout { grid-template-columns: minmax(0, 760px); }
+.is-solo .rivalbox { display: none; }
+
 .rivalbox { padding-bottom: 12px; }
 .rival-foot {
   margin: 10px 14px 0;

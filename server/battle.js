@@ -123,10 +123,10 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
     ranking: db.prepare(
       `SELECT p.player, p.name,
               (SELECT COUNT(*) FROM battles b
-                WHERE b.winner = p.player AND b.status = 'done') AS wins,
+                WHERE b.winner = p.player AND b.status = 'done' AND b.mode <> 'solo') AS wins,
               (SELECT COUNT(*) FROM battle_players bp
                  JOIN battles b2 ON b2.battle = bp.battle
-                WHERE bp.player = p.player AND b2.status = 'done') AS played
+                WHERE bp.player = p.player AND b2.status = 'done' AND b2.mode <> 'solo') AS played
          FROM players p
         WHERE played > 0
         ORDER BY wins DESC, played ASC, p.name ASC
@@ -427,7 +427,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
   function liveList() {
     const out = [];
     for (const room of rooms.values()) {
-      if (room.status !== 'live') continue;
+      if (room.status !== 'live' || room.mode === 'solo') continue;
       out.push({
         battle: room.id,
         code: room.code,
@@ -658,6 +658,15 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
       }
       const room = createRoom({ host: player, hostName: myName, size: 2, mode: 'quick' });
       broadcastLobby();
+      send(res, 200, view(room, player));
+      return true;
+    }
+
+    /* -- single play: a board of your own, no opponent -- */
+    if (post && p === '/api/battle/solo') {
+      leaveEverything(player);
+      const room = createRoom({ host: player, hostName: myName, size: 1, mode: 'solo' });
+      startBattle(room);
       send(res, 200, view(room, player));
       return true;
     }
