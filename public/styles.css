@@ -2435,7 +2435,77 @@ a { cursor: var(--cur-target), pointer; }
   opacity: 0.75;
 }
 
-.rivals { display: grid; gap: 12px; padding: 0 12px; }
+/* The opponents column has to hold anything from one rival to seven, so the
+   cards are sized to the count rather than to the widest case. Left alone,
+   three full-size cards ran some 600px past the bottom of the puzzle. */
+.rivals {
+  display: grid;
+  gap: 12px;
+  padding: 0 12px;
+  /* Last resort for a full room: scroll inside the panel rather than drag the
+     page down past the board. */
+  max-height: 78vh;
+  overflow-y: auto;
+}
+
+/* Three still fit one per row, on smaller boards. */
+.rivals[data-count="3"] .board-mini { gap: 4px; padding: 8px 10px 0; }
+.rivals[data-count="3"] .board-mini .tube { gap: 2px; padding: 3px; }
+.rivals[data-count="3"] .board-mini .block,
+.rivals[data-count="3"] .board-mini .slot { height: 9px; border-radius: 4px; }
+
+/* Four or more: two per row, which buys back the height a single column
+   spends. Narrower cards mean shorter tubes, not clipped ones. */
+.rivals[data-count="4"],
+.rivals[data-count="5"],
+.rivals[data-count="6"],
+.rivals[data-count="7"],
+.rivals[data-count="8"] { grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.rivals[data-count="4"] .board-mini,
+.rivals[data-count="5"] .board-mini,
+.rivals[data-count="6"] .board-mini,
+.rivals[data-count="7"] .board-mini,
+.rivals[data-count="8"] .board-mini { gap: 3px; padding: 7px 8px 0; }
+
+.rivals[data-count="4"] .board-mini .tube,
+.rivals[data-count="5"] .board-mini .tube,
+.rivals[data-count="6"] .board-mini .tube,
+.rivals[data-count="7"] .board-mini .tube,
+.rivals[data-count="8"] .board-mini .tube { gap: 2px; padding: 2px; }
+
+.rivals[data-count="4"] .board-mini .block,
+.rivals[data-count="4"] .board-mini .slot,
+.rivals[data-count="5"] .board-mini .block,
+.rivals[data-count="5"] .board-mini .slot,
+.rivals[data-count="6"] .board-mini .block,
+.rivals[data-count="6"] .board-mini .slot,
+.rivals[data-count="7"] .board-mini .block,
+.rivals[data-count="7"] .board-mini .slot,
+.rivals[data-count="8"] .board-mini .block,
+.rivals[data-count="8"] .board-mini .slot { height: 7px; border-radius: 3px; }
+
+/* The header wraps badly once a card is half-width; keep it on one line. */
+.rivals[data-count="4"] .side-head,
+.rivals[data-count="5"] .side-head,
+.rivals[data-count="6"] .side-head,
+.rivals[data-count="7"] .side-head,
+.rivals[data-count="8"] .side-head { padding: 7px 8px 0; gap: 5px; }
+.rivals[data-count="4"] .side-name,
+.rivals[data-count="5"] .side-name,
+.rivals[data-count="6"] .side-name,
+.rivals[data-count="7"] .side-name,
+.rivals[data-count="8"] .side-name { font-size: 10px; letter-spacing: 0.02em; }
+.rivals[data-count="4"] .side-meta,
+.rivals[data-count="5"] .side-meta,
+.rivals[data-count="6"] .side-meta,
+.rivals[data-count="7"] .side-meta,
+.rivals[data-count="8"] .side-meta { padding: 0 8px; font-size: 10px; }
+.rivals[data-count="4"] .pill,
+.rivals[data-count="5"] .pill,
+.rivals[data-count="6"] .pill,
+.rivals[data-count="7"] .pill,
+.rivals[data-count="8"] .pill { font-size: 9px; padding: 2px 4px; }
 
 .side {
   border: 1px solid var(--line-soft);

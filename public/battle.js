@@ -383,7 +383,9 @@
     var rivals = view.players.filter(function (p) { return !p.you; });
     el.rivals.innerHTML = rivals.map(rivalHTML).join('');
     paintStyles(el.rivals);
-    el.rivals.classList.toggle('rivals-many', rivals.length > 1);
+    // The stylesheet sizes the cards from this, so a full room still fits the
+    // panel instead of running off the bottom of it.
+    el.rivals.setAttribute('data-count', String(rivals.length));
     renderMyBoard();
   }
 
@@ -718,6 +720,7 @@
   function renderWatch() {
     el.watchCode.textContent = view.code;
     el.watchGrid.innerHTML = view.players.map(rivalHTML).join('');
+    el.watchGrid.setAttribute('data-count', String(view.players.length));
     paintStyles(el.watchGrid);
     if (view.status === 'done') {
       el.watchGrid.insertAdjacentHTML('afterbegin',
