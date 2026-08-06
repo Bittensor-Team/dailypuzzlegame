@@ -388,7 +388,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
   /* Wire format                                                       */
   /* ---------------------------------------------------------------- */
 
-  function seatView(room, seat, forPlayer) {
+  function seatView(room, seat, forPlayer, spectating) {
     const you = seat.player === forPlayer;
     const total = game.COLOR_COUNT;
     const done = seat.tubes ? tubesDone(seat.tubes) : 0;
@@ -396,13 +396,16 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
       player: seat.player,
       name: seat.name,
       you,
-      // Only your own colours are ever sent. An opponent is described by shape
-      // alone — how full each tube is and whether it is finished. Everyone is
-      // racing the identical deal, so sending their colours would hand a stuck
-      // player the leader's solution, and hiding it in CSS would not: it would
-      // still be sitting in the page for anyone who opened devtools.
-      tubes: you && seat.tubes ? seat.tubes.map((t) => t.slice()) : null,
-      shape: you || !seat.tubes ? null : seat.tubes.map((t) => ({
+      /* A player sees only their own colours. Everyone is racing the identical
+         deal, so an opponent's colours would hand a stuck player the leader's
+         solution — they get shape alone: how full each tube is, and whether it
+         is finished.
+
+         Somebody watching holds no board of their own, so there is nothing for
+         them to copy the answer onto, and the whole point of watching is to
+         see the game. They get the colours. */
+      tubes: (you || spectating) && seat.tubes ? seat.tubes.map((t) => t.slice()) : null,
+      shape: you || spectating || !seat.tubes ? null : seat.tubes.map((t) => ({
         n: t.length,
         done: t.length === game.CAPACITY && game.isTubeDone(t),
       })),
@@ -419,6 +422,8 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
   }
 
   function view(room, forPlayer) {
+    // Holding no seat in this room means watching it, not playing it.
+    const spectating = !room.seats.has(forPlayer);
     return {
       battle: room.id,
       code: room.code,
@@ -431,7 +436,8 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
       startAt: room.startAt,
       now: Date.now(),
       winner: room.winner,
-      players: [...room.seats.values()].map((s) => seatView(room, s, forPlayer)),
+      spectating,
+      players: [...room.seats.values()].map((s) => seatView(room, s, forPlayer, spectating)),
     };
   }
 

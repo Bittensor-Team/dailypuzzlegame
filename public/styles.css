@@ -2325,11 +2325,48 @@ a { cursor: var(--cur-target), pointer; }
 /* ---------- spectating ---------- */
 
 .watch {
-  max-width: 1180px;
+  max-width: 1320px;
   margin: 0 auto 22px;
   padding-bottom: 14px;
 }
-.watch .rivals { padding: 0 14px; }
+/* Watching is a wide view, not a narrow column: the boards lay out as a grid,
+   up to four across, so a full room reads as one picture. */
+.watch .rivals {
+  padding: 0 14px;
+  max-height: none;
+  overflow: visible;
+  gap: 12px;
+}
+.watch .rivals[data-count="1"] { grid-template-columns: minmax(0, 420px); justify-content: center; }
+.watch .rivals[data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.watch .rivals[data-count="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.watch .rivals[data-count="4"],
+.watch .rivals[data-count="5"],
+.watch .rivals[data-count="6"],
+.watch .rivals[data-count="7"],
+.watch .rivals[data-count="8"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+/* A spectator's cards are full boards in colour, so they get room to breathe
+   rather than the arena's compressed thumbnails. */
+.watch .board-mini { gap: 5px; padding: 10px 11px 0; }
+.watch .board-mini .tube { gap: 3px; padding: 4px; }
+.watch .board-mini .block,
+.watch .board-mini .slot { height: 13px; border-radius: 5px; }
+.watch .rivals[data-count="3"] .board-mini .block,
+.watch .rivals[data-count="3"] .board-mini .slot { height: 12px; }
+.watch .rivals[data-count="4"] .board-mini .block,
+.watch .rivals[data-count="4"] .board-mini .slot,
+.watch .rivals[data-count="5"] .board-mini .block,
+.watch .rivals[data-count="5"] .board-mini .slot,
+.watch .rivals[data-count="6"] .board-mini .block,
+.watch .rivals[data-count="6"] .board-mini .slot,
+.watch .rivals[data-count="7"] .board-mini .block,
+.watch .rivals[data-count="7"] .board-mini .slot,
+.watch .rivals[data-count="8"] .board-mini .block,
+.watch .rivals[data-count="8"] .board-mini .slot { height: 10px; border-radius: 4px; }
+
+/* The colour tags are for the player's own board; at this size they clutter. */
+.watch .board-mini .tag { display: none; }
 .watch-over {
   grid-column: 1 / -1;
   margin: 0 0 4px;

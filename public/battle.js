@@ -319,20 +319,32 @@
      and whether it is finished, never which colours are in it. Read-only, so
      plain markup rather than buttons. */
   function rivalHTML(p) {
-    var shape = p.shape || [];
     var cells = '';
-    for (var i = 0; i < shape.length; i++) {
-      var blocks = '';
-      for (var b = 0; b < shape[i].n; b++) blocks += '<div class="block block-mute"></div>';
-      for (var e = 0; e < CAPACITY - shape[i].n; e++) blocks += '<div class="slot"></div>';
-      cells += '<div class="tube tube-mini' + (shape[i].done ? ' tube-sealed' : '') + '">' +
-        blocks + '</div>';
+    if (p.tubes) {
+      // Watching: the real board, in colour. Only a spectator is sent this.
+      for (var t = 0; t < p.tubes.length; t++) {
+        var done = p.tubes[t].length === CAPACITY && isTubeDone(p.tubes[t]);
+        cells += '<div class="tube tube-mini' + (done ? ' tube-sealed' : '') + '">' +
+          tubeHTML(p.tubes[t], 0) + '</div>';
+      }
+    } else {
+      // Playing: an opponent is shape alone, so their colours cannot be read
+      // off your screen and copied onto your own identical board.
+      var shape = p.shape || [];
+      for (var i = 0; i < shape.length; i++) {
+        var blocks = '';
+        for (var b = 0; b < shape[i].n; b++) blocks += '<div class="block block-mute"></div>';
+        for (var e = 0; e < CAPACITY - shape[i].n; e++) blocks += '<div class="slot"></div>';
+        cells += '<div class="tube tube-mini' + (shape[i].done ? ' tube-sealed' : '') + '">' +
+          blocks + '</div>';
+      }
     }
     var status = p.solved ? '<span class="pill pill-win">' + ordinal(p.place) + '</span>'
       : p.left ? '<span class="pill pill-gone">left</span>'
       : p.here ? '<span class="pill pill-live">playing</span>'
       : '<span class="pill pill-gone">away</span>';
-    return '<article class="side side-rival' + (p.solved ? ' is-solved' : '') + '">' +
+    return '<article class="side side-rival' + (p.solved ? ' is-solved' : '') +
+      (p.you ? ' is-you' : '') + '">' +
       '<header class="side-head"><span class="side-name">' + esc(p.name) + '</span>' + status +
       '</header>' +
       '<p class="side-meta"><b>' + p.moves + '</b> moves &middot; <b>' + p.done + '</b>/10 done</p>' +
