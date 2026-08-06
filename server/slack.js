@@ -146,6 +146,8 @@ function composeSolve({ name, moves, rank, total, day, previous, board }) {
 
 /* A finished battle: who won, and how everyone placed. */
 function composeBattle({ code, winner, players }) {
+  // Fewest moves wins, so the headline says what actually won it.
+  const best = (players || []).find((p) => p.place === 1 && p.solved);
   const rows = (players || []).slice(0, 8).map((p) =>
     (p.place <= 3 ? MEDALS[p.place - 1] : '  ') + ' ' + String(p.place).padStart(2) + '  ' +
     fit(p.name, 14) + '  ' +
@@ -154,7 +156,8 @@ function composeBattle({ code, winner, players }) {
   return {
     text: (winner || 'Nobody') + ' won battle ' + code,
     blocks: [
-      section('⚔️ *Battle over* — *' + esc(winner || 'nobody') + '* took it.'),
+      section('⚔️ *Battle over* — *' + esc(winner || 'nobody') + '* took it' +
+        (best ? ' with ' + best.moves + ' moves' : '') + '.'),
       section('```' + esc(rows.join('\n')) + '```'),
       context('🏷️ Battle ' + code),
       link('⚔️ Start a battle', 'battle.html'),

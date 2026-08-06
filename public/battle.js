@@ -172,7 +172,9 @@
      move is now applied locally the instant it is tapped and the server's copy
      reconciles behind it. The server is still the authority: it can reject a
      move, and then its board replaces ours. */
-  var localMoves = 0;       // our count, including moves not yet acknowledged
+  var localMoves = 0;       // pours standing on our board, undos taken off
+  var localActs = 0;        // actions sent, undos included — never falls, so a
+                            // frame can be told apart from a stale one
   var localHistory = [];    // {from, to, count} per optimistic pour, for undo
   var watching = false;     // in this battle as a spectator, not a player
   var currentBattle = null; // which battle the state below belongs to
@@ -190,6 +192,7 @@
     primedDone = false;
     celebrated = false;
     localMoves = 0;
+    localActs = 0;
     localHistory = [];
     if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
     el.resultOverlay.hidden = true;
@@ -356,7 +359,7 @@
   function renderArena() {
     var mine = me();
     if (!mine) return;
-    el.myMoves.textContent = String(Math.max(mine.moves, localMoves));
+    el.myMoves.textContent = String(localMoves);
     el.arenaCode.textContent = view.code;
     el.solvedChip.hidden = !mine.solved;
 
@@ -364,8 +367,10 @@
     // came and who is still out there.
     if (mine.solved && view.status === 'live' && view.mode !== 'solo') {
       var racing = view.players.filter(function (p) { return !p.solved && !p.left; }).length;
-      el.myProgress.innerHTML = 'Finished <b>' + ordinal(mine.place) + '</b> in <b>' +
-        mine.moves + '</b> moves &middot; ' +
+      // Provisional: somebody still playing can finish under your move count
+      // and take the place off you.
+      el.myProgress.innerHTML = 'Finished in <b>' + mine.moves + '</b> moves &middot; ' +
+        'currently <b>' + ordinal(mine.place) + '</b> &middot; ' +
         (racing === 1 ? 'one player still going' : racing + ' players still going');
     } else {
       el.myProgress.innerHTML = '<b>' + mine.done + '</b>/10 tubes done';
@@ -443,11 +448,13 @@
     // fold the elapsed time back in and the countdown would never expire.
     skew = view.now - Date.now();
     var mine = me();
-    if (mine && mine.tubes && mine.moves >= localMoves) {
-      // The server has caught up with (or passed) us, so its board wins.
+    // Reconcile on actions, not on the move count: an undo lowers moves, and a
+    // falling number cannot say whether a frame is ahead of us or behind.
+    if (mine && mine.tubes && (mine.acts || 0) >= localActs) {
       myTubes = mine.tubes;
-      if (mine.moves > localMoves) localHistory = [];   // we lost the thread
+      if ((mine.acts || 0) > localActs) localHistory = [];   // we lost the thread
       localMoves = mine.moves;
+      localActs = mine.acts || 0;
     }
 
     // Fireworks the moment you finish; the full-screen treatment if you took it.
@@ -533,8 +540,8 @@
       : mine && mine.solved ? 'Finished ' + ordinal(mine.place) : 'Battle over';
     // textContent escapes on its own; running esc() here would show &amp;.
     el.resultLine.textContent = !winner ? 'Nobody finished.'
-      : iWon ? 'First to finish — ' + mine.moves + ' moves, ' + formatMs(mine.ms) + '.'
-      : winner.name + ' finished first in ' + winner.moves + ' moves, ' + formatMs(winner.ms) + '.';
+      : iWon ? 'Fewest moves — ' + mine.moves + ' in ' + formatMs(mine.ms) + '.'
+      : winner.name + ' won with ' + winner.moves + ' moves in ' + formatMs(winner.ms) + '.';
 
     var rows = view.players.slice().sort(function (a, b) {
       return (a.place || 99) - (b.place || 99);
@@ -764,7 +771,7 @@
       // A rejected move means our optimistic board drifted from the server's.
       // Drop the prediction and take theirs, whatever it says.
       if (r.data && r.data.state) {
-        localMoves = -1;
+        localActs = -1;          // force the server's picture to be taken
         localHistory = [];
         apply(r.data.state);
       }
@@ -799,6 +806,7 @@
     if (!moved) { nudge(); return; }
     localHistory.push({ from: from, to: index, count: moved });
     localMoves += 1;
+    localActs += 1;
     renderMyBoard();
     paintMyStats();
     sendMove({ from: from, to: index });
@@ -831,8 +839,10 @@
     var last = localHistory.pop();
     if (last && myTubes) {
       for (var i = 0; i < last.count; i++) myTubes[last.from].push(myTubes[last.to].pop());
-      // Undo buys back the position, never the move — same as the daily puzzle.
-      localMoves += 1;
+      // Undo takes the pour back off the count: fewest moves wins a battle, so
+      // correcting a mistake must not be charged as one.
+      localMoves = Math.max(0, localMoves - 1);
+      localActs += 1;
       selected = null;
       renderMyBoard();
       paintMyStats();

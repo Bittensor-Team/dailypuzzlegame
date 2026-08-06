@@ -1,6 +1,11 @@
 /*
  * Live battles — duels and multiplayer races on a freshly dealt board.
  *
+ * Fewest moves wins, with time breaking a tie. Finishing first is therefore
+ * not the same as winning, and everyone plays to the end: a battle that
+ * stopped early would hand it to whoever finished first, which is the rule
+ * this replaced. Forfeiting or leaving ends your run.
+ *
  * Unlike the daily puzzle, a battle board is generated the moment the battle
  * starts and never repeats. Every board, every player and every single move is
  * written to the database, so a finished battle can be replayed move by move
@@ -165,7 +170,8 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
       name: name || 'anonymous',
       tubes: null,      // dealt when the battle starts
       history: [],      // {from, to, count} per pour, for undo
-      moves: 0,
+      moves: 0,         // pours currently standing on the board
+      acts: 0,          // every action ever sent, undos included — never falls
       done: false,
       ms: null,
       place: null,
@@ -259,6 +265,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
     if (count === 0) return false;
     seat.history.push({ from, to, count });
     seat.moves += 1;
+    seat.acts += 1;
     return true;
   }
 
@@ -267,9 +274,12 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
     const last = seat.history.pop();
     if (!last) return false;
     for (let i = 0; i < last.count; i++) seat.tubes[last.from].push(seat.tubes[last.to].pop());
-    // Undo costs a move here exactly as it does in the daily puzzle: it buys
-    // back the position, never the move count.
-    seat.moves += 1;
+    /* Undo takes the pour back off the count. Fewest moves decides a battle,
+       so charging for the undo as well would punish a mistake twice: once for
+       the wrong pour, again for correcting it. The daily puzzle still charges,
+       because there the move count is the whole challenge. */
+    seat.moves = Math.max(0, seat.moves - 1);
+    seat.acts += 1;
     return true;
   }
 
@@ -302,11 +312,29 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
   /* A finish is recorded the moment it happens — place, moves and time — and
      the battle carries on. Only the last player standing is denied a finish,
      because there is nobody left to race. */
+  /* Standing among the players who have finished so far, fewest moves first.
+     Provisional while the battle runs: somebody still playing can finish under
+     your count and push you down. */
+  function standing(room, seat) {
+    return byMoves([...room.seats.values()].filter((s) => s.done)).indexOf(seat) + 1;
+  }
+
+  /* Fewer moves wins. Time only separates players who spent the same number —
+     without a second key the order is not total and two people would share a
+     place. */
+  function byMoves(seats) {
+    return seats.slice().sort((a, b) => {
+      if (a.moves !== b.moves) return a.moves - b.moves;
+      return (a.ms === null ? Infinity : a.ms) - (b.ms === null ? Infinity : b.ms);
+    });
+  }
+
   function recordFinish(room, seat, at) {
     seat.done = true;
     seat.ms = at - room.startAt;
-    seat.place = [...room.seats.values()].filter((s) => s.done).length;   // finish order
-    if (!room.winner) room.winner = seat.player;
+    // Provisional only. The winner cannot be known while anyone is still
+    // playing, because a later finisher may use fewer moves.
+    seat.place = standing(room, seat);
     q.scorePlayer.run(seat.moves, seat.ms, seat.place, room.id, seat.player);
   }
 
@@ -318,19 +346,20 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
     room.ended = Date.now();
 
     const seats = [...room.seats.values()];
-    const finished = seats.filter((s) => s.done).sort((a, b) => a.place - b.place);
+    const finished = byMoves(seats.filter((s) => s.done));
     const rest = seats.filter((s) => !s.done).sort((a, b) => {
       if (a.left !== b.left) return a.left ? 1 : -1;
       const da = a.tubes ? tubesDone(a.tubes) : 0;
       const dbb = b.tubes ? tubesDone(b.tubes) : 0;
       if (da !== dbb) return dbb - da;
-      return a.moves - b.moves;
+      return a.moves - b.moves;   // further along on fewer moves ranks higher
     });
 
-    if (!room.winner) {
-      // Nobody finished: a walkover, so whoever was left standing takes it.
-      room.winner = fallbackWinner || (rest[0] ? rest[0].player : null);
-    }
+    // The winner is settled here, not when somebody first finished: it is
+    // whoever used the fewest moves. With no finisher at all it is a walkover,
+    // so whoever was left standing takes it.
+    room.winner = finished.length ? finished[0].player
+      : (fallbackWinner || (rest[0] ? rest[0].player : null));
 
     [...finished, ...rest].forEach((seat, i) => {
       seat.place = i + 1;
@@ -378,6 +407,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
         done: t.length === game.CAPACITY && game.isTubeDone(t),
       })),
       moves: seat.moves,
+      acts: you ? seat.acts : undefined,
       done,
       percent: Math.round((100 * done) / total),
       solved: seat.done,
@@ -501,7 +531,9 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
         }
       }
       const present = [...room.seats.values()].filter((s) => !s.left);
-      if (room.status === 'live' && room.seats.size > 1 && contenders(room).length <= 1) {
+      // Nobody left who could still finish: everyone has either solved it or
+      // walked away.
+      if (room.status === 'live' && room.seats.size > 1 && contenders(room).length === 0) {
         endBattle(room, present[0] ? present[0].player : null);
         continue;
       }
@@ -702,13 +734,14 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
       if (!ok) { send(res, 400, { error: 'Illegal move.', state: view(room, player) }); return true; }
 
       const at = Date.now();
-      q.addMove.run(room.id, player, seat.moves, undo ? -1 : from, undo ? -1 : to, at);
+      q.addMove.run(room.id, player, seat.acts, undo ? -1 : from, undo ? -1 : to, at);
 
       if (!undo && game.isSolved(seat.tubes)) {
         recordFinish(room, seat, at);
-        // The race is over only when a single player is left with nobody to
-        // race against; until then the others keep playing for their place.
-        if (contenders(room).length <= 1) endBattle(room);
+        /* Everyone plays to the end now. Fewest moves decides it, so stopping
+           when one player was left would hand the win to whoever finished
+           first — in a duel the second player would never move at all. */
+        if (contenders(room).length === 0) endBattle(room);
         else { broadcast(room); broadcastLobby(); }
       } else {
         broadcast(room);
@@ -740,7 +773,7 @@ module.exports = function createBattles({ db, game, playerForToken, nameOf, anno
           seat.left = true;
           // Walking out of a live battle can leave a lone contender, and there
           // is no race with one runner.
-          if (room.status === 'live' && room.seats.size > 1 && contenders(room).length <= 1) {
+          if (room.status === 'live' && room.seats.size > 1 && contenders(room).length === 0) {
             const present = [...room.seats.values()].filter((p2) => !p2.left);
             endBattle(room, present[0] ? present[0].player : null);
           } else {
