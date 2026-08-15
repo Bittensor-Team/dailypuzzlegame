@@ -744,6 +744,64 @@
       if (isSolved(state.tubes)) win();
     }
 
+    /* What lands on the clipboard. Plain text with no markup, because it is
+       pasted into a chat as often as anywhere else. */
+    function shareText() {
+      var lines = ['Daily Color Puzzle — ' + prettyDate(date)];
+      lines.push('Solved in ' + state.moves + ' move' + (state.moves === 1 ? '' : 's') +
+        (state.elapsedMs ? ' · ' + formatMs(state.elapsedMs) : ''));
+      if (lastStanding && lastStanding.rank) {
+        // "ahead of 0% of players" is noise when you are the only one there.
+        var share = lastStanding.total > 1 && typeof lastStanding.betterThan === 'number'
+          ? ' — ahead of ' + lastStanding.betterThan + '% of players' : '';
+        lines.push('Rank ' + lastStanding.rank + ' of ' + lastStanding.total + share);
+      }
+      lines.push(location.origin + location.pathname.replace(/[^/]*$/, ''));
+      return lines.join('\n');
+    }
+
+    /* navigator.clipboard needs a secure context and a user gesture, and it can
+       still be refused. The textarea fallback works where it is not available,
+       and a prompt is the last resort so the text is never simply unreachable. */
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        var box = document.createElement('textarea');
+        box.value = text;
+        box.setAttribute('readonly', '');
+        box.style.position = 'fixed';
+        box.style.top = '-1000px';
+        document.body.appendChild(box);
+        box.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(box);
+        ok ? resolve() : reject(new Error('copy refused'));
+      });
+    }
+
+    var shareTimer = null;
+
+    function flashShare(label) {
+      el.shareBtn.textContent = label;
+      if (shareTimer) clearTimeout(shareTimer);
+      shareTimer = setTimeout(function () { el.shareBtn.textContent = 'Copy result'; }, 1600);
+    }
+
+    el.shareBtn.addEventListener('click', function () {
+      var text = shareText();
+      copyText(text).then(
+        function () { flashShare('Copied'); },
+        function () {
+          // Nothing worked: show it so it can at least be copied by hand.
+          flashShare('Copy failed');
+          window.prompt('Copy your result', text);
+        }
+      );
+    });
+
     function win() {
       state.won = true;
       if (state.startedAt !== null && state.elapsedMs === null) {
@@ -961,7 +1019,14 @@
     // into a stroke length.
     var GAUGE_C = 2 * Math.PI * 49;
 
+    /* The last standings the server sent. A shared result quotes the rank, and
+       the rank only exists on the server. */
+    var lastStanding = null;
+
     function renderRank(data) {
+      if (data && data.best !== null && data.best !== undefined) {
+        lastStanding = { rank: data.rank, total: data.total, betterThan: data.betterThan };
+      }
       var total = (data && data.total) || 0;
       var mine = data && data.best !== null && data.best !== undefined ? data.best : null;
       var pct = data && typeof data.betterThan === 'number' ? data.betterThan : null;
