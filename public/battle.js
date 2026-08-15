@@ -847,6 +847,21 @@
     if (node) tap(Number(node.dataset.index));
   });
 
+  /* Clicking away drops the blocks, the same as on the daily board. The tube
+     test runs in the capture phase because renderMyBoard() rebuilds the tubes
+     and detaches the clicked block, and a detached node reports that it is
+     inside nothing. */
+  var hitTube = false;
+  document.addEventListener('click', function (e) {
+    hitTube = !!(e.target && e.target.closest && e.target.closest('.tube'));
+  }, true);
+
+  document.addEventListener('click', function () {
+    if (selected === null || hitTube) return;
+    selected = null;
+    renderMyBoard();
+  });
+
   el.undoBtn2.addEventListener('click', function () {
     if (!started()) return;
     var mine = me();
