@@ -1289,6 +1289,18 @@
       if (node) tap(Number(node.dataset.index));
     });
 
+    /* Clicking away puts the blocks back down. Only a tap on a tube was
+       clearing the selection before, so a mis-click left one picked up with no
+       obvious way to drop it short of pressing Escape.
+       Bound to the document: clicking anywhere that is not a tube counts,
+       including outside the panel. */
+    document.addEventListener('click', function (e) {
+      if (state.selected === null) return;
+      if (e.target.closest('.tube')) return;   // a tube tap is the game itself
+      state.selected = null;
+      render();
+    });
+
     el.undoBtn.addEventListener('click', undo);
     el.restartBtn.addEventListener('click', restart);
 

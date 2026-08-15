@@ -847,6 +847,14 @@
     if (node) tap(Number(node.dataset.index));
   });
 
+  // Clicking away drops the blocks, the same as on the daily board.
+  document.addEventListener('click', function (e) {
+    if (selected === null) return;
+    if (e.target.closest('.tube')) return;
+    selected = null;
+    renderMyBoard();
+  });
+
   el.undoBtn2.addEventListener('click', function () {
     if (!started()) return;
     var mine = me();
