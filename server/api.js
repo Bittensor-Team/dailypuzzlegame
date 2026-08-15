@@ -21,6 +21,7 @@ const { DatabaseSync } = require('node:sqlite');
 // Server-only: the browser never receives the generator or the solver.
 const game = require('./puzzle.js');
 const telegram = require('./telegram.js');
+const notes = require('./notes.js');
 
 const PORT = Number(process.env.PORT || 8791);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -174,6 +175,9 @@ const deleteOtherSessions = db.prepare('DELETE FROM sessions WHERE player = ? AN
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TOKEN_RE = /^[a-f0-9]{64}$/;
+
+/* Notes own their schema; see server/notes.js. */
+const noteQueries = notes.install(db);
 
 function cleanName(raw) {
   if (typeof raw !== 'string') return null;
@@ -591,6 +595,10 @@ const server = http.createServer(async (req, res) => {
 
     return send(res, 200, Object.assign({ accepted: verified, signedIn: true }, dist));
   }
+
+  if (notes.route({
+    q: noteQueries, req, res, url, body, post, send, playerForToken,
+  })) return;
 
   send(res, 404, { error: 'not found' });
 });
