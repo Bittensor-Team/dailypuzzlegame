@@ -24,6 +24,10 @@ async function call(path, body) {
 
   const a = await call('register', { name: alice, password: 'correct horse battery' });
   const b = await call('register', { name: bob, password: 'correct horse battery' });
+  // A third account that is in nothing, for the "can a stranger" half of every
+  // permission question.
+  const c = await call('register', { name: `carol_${stamp}`, password: 'correct horse battery' });
+  const ct = c.body.token;
   ok('two accounts register', a.status === 200 && b.status === 200, [a, b]);
   const at = a.body.token;
   const bt = b.body.token;
@@ -185,6 +189,57 @@ async function call(path, body) {
     afterTeam.body.mine.some((n) => n.id === tpage.body.note.id && !n.team), afterTeam.body.mine.map((n) => n.title));
   ok('not to the person who deleted the team',
     !(await call(`notes?token=${at}`)).body.mine.some((n) => n.id === tpage.body.note.id));
+
+  /* ---- the diary ---- */
+  const team2 = await call('notes/team', { token: at, name: 'Ops' });
+  const t2 = team2.body.team;
+  await call('notes/team/member', { token: at, id: t2, name: bob });
+
+  const when = Date.now() + 45 * 60 * 1000;
+  const booked = await call('notes/schedule', {
+    token: at, team: t2, title: 'SN3 feature launch', detail: 'new weights go live', at: when,
+  });
+  ok('an entry is scheduled', booked.status === 200
+    && booked.body.schedule.some((s) => s.title === 'SN3 feature launch'), booked.body);
+  const entry = booked.body.schedule.find((s) => s.title === 'SN3 feature launch');
+  ok('and it carries its time, team and author',
+    entry.at === when && entry.team === t2 && entry.owner === alice, entry);
+
+  const theirs = await call(`notes?token=${bt}`);
+  ok('every member of the team sees it',
+    theirs.body.schedule.some((s) => s.id === entry.id), theirs.body.schedule);
+
+  const schedFeed = await call(`notes/events?token=${bt}&since=0`);
+  ok('and is told it was put there',
+    schedFeed.body.events.some((e) => e.kind === 'scheduled' && e.note === entry.id), schedFeed.body.events);
+
+  const moved = await call('notes/schedule', { token: bt, id: entry.id, title: 'SN3 feature launch', at: when + 3600000 });
+  ok('a member can move it', moved.status === 200
+    && moved.body.schedule.find((s) => s.id === entry.id).at === when + 3600000, moved.body);
+
+  ok('a stranger cannot', (await call('notes/schedule', {
+    token: ct, id: entry.id, title: 'nope', at: when,
+  })).status === 403);
+  ok('nor even see it', !(await call(`notes?token=${ct}`)).body.schedule.length);
+
+  ok('an entry needs a time', (await call('notes/schedule', { token: at, title: 'when?' })).status === 400);
+  ok('and a title', (await call('notes/schedule', { token: at, at: when })).status === 400);
+  ok('and a time this side of a century',
+    (await call('notes/schedule', { token: at, title: 'typo', at: when + 40 * 365 * 86400000 })).status === 400);
+
+  const mineOnly = await call('notes/schedule', { token: at, title: 'dentist', at: when });
+  const personal = mineOnly.body.schedule.find((s) => s.title === 'dentist');
+  ok('an entry with no team is private',
+    personal && !personal.team && !(await call(`notes?token=${bt}`)).body.schedule.some((s) => s.id === personal.id),
+    personal);
+
+  const onlyDiary = await call(`notes/schedule?token=${bt}`);
+  ok('the diary can be read on its own', onlyDiary.status === 200
+    && onlyDiary.body.schedule.some((s) => s.id === entry.id) && onlyDiary.body.now > 0, onlyDiary.body);
+
+  const unbooked = await call('notes/schedule', { token: at, id: entry.id, remove: true });
+  ok('and it can be taken out of the diary',
+    unbooked.status === 200 && !unbooked.body.schedule.some((s) => s.id === entry.id), unbooked.body);
 
   /* ---- rich text ---- */
   const rich = await call('notes', {

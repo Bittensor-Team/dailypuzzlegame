@@ -42,6 +42,10 @@ const KINDS = new Set(['note', 'command']);
 const MAX_TEAMS_PER_PLAYER = 20;
 const MAX_MEMBERS_PER_TEAM = 50;
 const EVENT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+/** How much of the diary is handed over: a week behind, a quarter ahead. */
+const AGENDA_PAST_MS = 7 * 24 * 60 * 60 * 1000;
+const AGENDA_AHEAD_MS = 92 * 24 * 60 * 60 * 1000;
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 function install(db) {
   db.exec(`
@@ -110,6 +114,26 @@ function install(db) {
       at    INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS note_events_by_team ON note_events (team, at);
+    /*
+     * The diary: something that is going to happen at a time.
+     *
+     * Kept beside the notes rather than anywhere cleverer because it is the
+     * same question - what does this team need to know - asked about the
+     * future. An entry with a team is the team's and everyone in it is told;
+     * one without is the author's own.
+     */
+    CREATE TABLE IF NOT EXISTS schedule (
+      id      TEXT PRIMARY KEY,
+      owner   TEXT NOT NULL,
+      team    TEXT,
+      title   TEXT NOT NULL,
+      detail  TEXT NOT NULL DEFAULT '',
+      at      INTEGER NOT NULL,
+      created INTEGER NOT NULL,
+      updated INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS schedule_by_time ON schedule (at);
+    CREATE INDEX IF NOT EXISTS schedule_by_team ON schedule (team, at);
   `);
 
   // Added after earlier releases. ALTER TABLE is the migration; SQLite has no
@@ -214,6 +238,28 @@ function install(db) {
       ORDER BY e.at LIMIT 100
     `),
     eventsTrim: db.prepare('DELETE FROM note_events WHERE at < ?'),
+
+    /* ---- the diary ---- */
+    schedAdd: db.prepare(`
+      INSERT INTO schedule (id, owner, team, title, detail, at, created, updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `),
+    schedUpdate: db.prepare('UPDATE schedule SET title = ?, detail = ?, at = ?, updated = ? WHERE id = ?'),
+    schedOne: db.prepare('SELECT * FROM schedule WHERE id = ?'),
+    schedDrop: db.prepare('DELETE FROM schedule WHERE id = ?'),
+    // Mine, plus every team I am in. A window rather than everything: a diary
+    // is about what is coming, and yesterday is only kept so a thing that has
+    // just happened does not vanish off the page while people are still
+    // talking about it.
+    schedFor: db.prepare(`
+      SELECT s.*, p.name AS owner_name, t.name AS team_name FROM schedule s
+      JOIN players p ON p.player = s.owner
+      LEFT JOIN teams t ON t.id = s.team
+      WHERE s.at BETWEEN ? AND ?
+        AND (s.owner = ? OR s.team IN (SELECT team FROM team_members WHERE player = ?))
+      ORDER BY s.at LIMIT 300
+    `),
+    schedTrim: db.prepare('DELETE FROM schedule WHERE at < ?'),
     notesInSection: db.prepare('SELECT id FROM notes WHERE section = ?'),
     adopt: db.prepare("UPDATE notes SET section = ? WHERE owner = ? AND (section IS NULL OR section = '')"),
     setSection: db.prepare('UPDATE notes SET section = ? WHERE id = ?'),
@@ -286,6 +332,36 @@ function recordEvent(q, note, kind, actor) {
   if (!note.team) return;
   const now = Date.now();
   q.eventAdd.run(note.team, note.id, String(note.title || '').slice(0, 120), actor, kind, now);
+  q.eventsTrim.run(now - EVENT_KEEP_MS);
+}
+
+/** The diary as the client sees it, nearest first. */
+function agendaFor(q, player) {
+  const now = Date.now();
+  return q.schedFor.all(now - AGENDA_PAST_MS, now + AGENDA_AHEAD_MS, player, player).map((row) => ({
+    id: row.id,
+    title: row.title,
+    detail: row.detail || '',
+    at: Number(row.at),
+    team: row.team || '',
+    teamName: row.team_name || '',
+    owner: row.owner_name,
+    mine: row.owner === player,
+  }));
+}
+
+/**
+ * A diary entry changing is news, so it goes in the same feed page edits do.
+ *
+ * The team hears "someone put something in the calendar" straight away; the
+ * reminders before the thing itself are the app's job, on each member's own
+ * machine, because a server that has to wake up at the right minute for every
+ * member is a server with a scheduler in it.
+ */
+function recordSchedule(q, row, kind, actor) {
+  if (!row || !row.team) return;
+  const now = Date.now();
+  q.eventAdd.run(row.team, row.id, String(row.title || '').slice(0, 120), actor, kind, now);
   q.eventsTrim.run(now - EVENT_KEEP_MS);
 }
 
@@ -453,7 +529,67 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
       // notebook per team and needs both to do it.
       teams,
       teamNotes: teams.flatMap((t) => q.teamNotes.all(t.id).map((row) => shape(q, row, player))),
+      schedule: agendaFor(q, player),
     });
+    return true;
+  }
+
+  /* ---- the diary on its own, for whatever is watching the clock ---- */
+  if (req.method === 'GET' && url.pathname === '/api/notes/schedule') {
+    send(res, 200, { now: Date.now(), schedule: agendaFor(q, player) });
+    return true;
+  }
+
+  /* ---- the diary: what is going to happen, and when ---- */
+  if (post && url.pathname === '/api/notes/schedule') {
+    const id = typeof body.id === 'string' ? body.id : '';
+    const existing = id ? q.schedOne.get(id) : null;
+    if (id && !existing) { send(res, 404, { error: 'That entry is gone.' }); return true; }
+    // An entry is the author's, or the team's - and a team's is any member's to
+    // correct, the same as its pages.
+    if (existing) {
+      const allowed = existing.owner === player
+        || (existing.team && memberOf(q, existing.team, player));
+      if (!allowed) { send(res, 403, { error: 'That entry is not yours.' }); return true; }
+    }
+
+    if (body.remove && existing) {
+      q.schedDrop.run(existing.id);
+      recordSchedule(q, existing, 'unscheduled', player);
+      send(res, 200, { deleted: existing.id, schedule: agendaFor(q, player) });
+      return true;
+    }
+
+    const title = clean(body.title, MAX_TITLE);
+    // clean() answers null for both "not a string" and "too long"; a missing
+    // detail is neither an error nor a detail.
+    const detail = body.detail === undefined ? '' : clean(body.detail, 2000);
+    const at = Number(body.at);
+    if (!title) { send(res, 400, { error: 'An entry needs a title.' }); return true; }
+    if (detail === null) { send(res, 400, { error: 'That detail is too long.' }); return true; }
+    if (!Number.isFinite(at) || at <= 0) { send(res, 400, { error: 'An entry needs a time.' }); return true; }
+    // Far enough out to plan a quarter, not so far that a typo in a year files
+    // something in the next century.
+    const now = Date.now();
+    if (at < now - YEAR_MS || at > now + YEAR_MS) {
+      send(res, 400, { error: 'That time is not within a year of now.' });
+      return true;
+    }
+
+    const team = existing ? (existing.team || '') : (typeof body.team === 'string' ? body.team : '');
+    if (team && !memberOf(q, team, player)) { send(res, 404, { error: 'No such team.' }); return true; }
+
+    if (existing) {
+      q.schedUpdate.run(title, detail, at, now, existing.id);
+      recordSchedule(q, q.schedOne.get(existing.id), 'rescheduled', player);
+    } else {
+      const made = randomUUID();
+      q.schedAdd.run(made, player, team || null, title, detail, at, now, now);
+      recordSchedule(q, q.schedOne.get(made), 'scheduled', player);
+    }
+    // Things that happened a fortnight ago are nobody's plan any more.
+    q.schedTrim.run(now - AGENDA_PAST_MS * 2);
+    send(res, 200, { schedule: agendaFor(q, player) });
     return true;
   }
 
