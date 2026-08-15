@@ -149,6 +149,26 @@ async function call(path, body) {
   ok('nor event handlers', !/onclick|onerror/i.test(kept), kept);
   ok('but the words do', kept.includes('hi'), kept);
 
+  // A page that says `a && b` arrives as markup that already has the ampersand
+  // escaped. Escaping it again would say `a &amp;&amp; b` on the way back, and
+  // one level deeper on every save after that.
+  const amp = await call('notes', {
+    token: at, title: 'ampersands', html: true,
+    body: '<pre>btcli s list &amp;&amp; echo &lt;done&gt;</pre>',
+  });
+  const once = amp.body.note.body;
+  ok('an escaped ampersand is not escaped again',
+    once === '<pre>btcli s list &amp;&amp; echo &lt;done&gt;</pre>', once);
+
+  const again = await call('notes', { token: at, id: amp.body.note.id, html: true, title: 'ampersands', body: once });
+  ok('and saving it back leaves it alone', again.body.note.body === once, again.body.note.body);
+
+  const bare = await call('notes', {
+    token: at, title: 'bare ampersand', html: true, body: '<p>tom & jerry</p>',
+  });
+  ok('a bare ampersand still gets escaped',
+    bare.body.note.body === '<p>tom &amp; jerry</p>', bare.body.note.body);
+
   const gone = await call('notes/delete', { token: at, id });
   ok('the owner deletes', gone.status === 200 && gone.body.deleted === id, gone);
   ok('and it is gone for the owner too',

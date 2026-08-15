@@ -226,8 +226,21 @@ function sanitiseHtml(raw) {
   return out;
 }
 
+/**
+ * Escape a run of text, once.
+ *
+ * What arrives is already markup: the editor hands over `a &amp;&amp; b` for a
+ * page that says `a && b`. Escaping every ampersand would turn that into
+ * `&amp;amp;` and the page would say `a &amp;&amp; b` the next time it was
+ * read - and again on the save after that, escaping itself a level deeper every
+ * time. So an ampersand that is already the start of an entity is left alone;
+ * a bare one is still escaped, which is what makes the rest of this safe.
+ */
 function escapeText(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&(?!#\d+;|#[xX][0-9a-fA-F]+;|[a-zA-Z][a-zA-Z0-9]{1,31};)/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function keptAttrs(tag, inner) {
