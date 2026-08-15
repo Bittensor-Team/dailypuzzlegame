@@ -130,6 +130,62 @@ async function call(path, body) {
   ok('the last section cannot be deleted',
     (await call('notes/section', { token: at, id: first, remove: true })).status === 400);
 
+  /* ---- teams: a notebook with more than one person in it ---- */
+  const team = await call('notes/team', { token: at, name: 'Validators' });
+  ok('a team is created', team.status === 200 && team.body.team, team.body);
+  const tid = team.body.team;
+  ok('with its creator as owner and a section to write in',
+    team.body.teams[0].role === 'owner' && team.body.teams[0].sections.length === 1, team.body.teams[0]);
+
+  ok('a stranger cannot see it', !(await call(`notes?token=${bt}`)).body.teams.length);
+  ok('nor add a page to it',
+    (await call('notes', { token: bt, title: 'sneaky', body: 'x', team: tid })).body.note.team === '');
+
+  const invited = await call('notes/team/member', { token: at, id: tid, name: bob });
+  ok('the owner invites', invited.status === 200 && invited.body.teams[0].members.length === 2, invited.body.teams[0]);
+  ok('and now the member sees the notebook',
+    (await call(`notes?token=${bt}`)).body.teams.some((t) => t.id === tid));
+
+  const tsec = team.body.teams[0].sections[0].id;
+  const tpage = await call('notes', { token: bt, title: 'runbook', body: 'restart it', section: tsec });
+  ok('a member adds a page to the team', tpage.body.note.team === tid, tpage.body.note);
+  ok('and it is not in their own notebook',
+    !(await call(`notes?token=${bt}`)).body.mine.some((n) => n.id === tpage.body.note.id));
+  ok('but it is in the team notebook for both',
+    (await call(`notes?token=${at}`)).body.teamNotes.some((n) => n.id === tpage.body.note.id));
+
+  const teamEdit = await call('notes', { token: at, id: tpage.body.note.id, title: 'runbook', body: 'restart it twice' });
+  ok('the other member edits it', teamEdit.status === 200 && teamEdit.body.note.body.includes('twice'), teamEdit.body);
+
+  const tsec2 = await call('notes/section', { token: bt, team: tid, name: 'Incidents' });
+  ok('a member adds a section to the team',
+    tsec2.body.teams.find((t) => t.id === tid).sections.length === 2, tsec2.body.teams);
+
+  const feed = await call(`notes/events?token=${bt}&since=0`);
+  ok('the feed carries what the others did', feed.body.events.length >= 1, feed.body.events);
+  ok('but never what I did myself',
+    feed.body.events.every((e) => e.who !== bob), feed.body.events.map((e) => e.who));
+  ok('and it says which team, page and person', feed.body.events.every(
+    (e) => e.team === tid && e.title && e.who && e.kind), feed.body.events);
+
+  ok('a member cannot invite', (await call('notes/team/member', { token: bt, id: tid, name: alice })).status === 403);
+  ok('nor rename the team', (await call('notes/team', { token: bt, id: tid, name: 'theirs' })).status === 403);
+  ok('but can leave it',
+    (await call('notes/team/member', { token: bt, id: tid, name: bob, remove: true })).status === 200);
+  ok('and then it is gone from their list', !(await call(`notes?token=${bt}`)).body.teams.length);
+  ok('the owner cannot be removed',
+    (await call('notes/team/member', { token: at, id: tid, name: alice, remove: true })).status === 400);
+
+  const dissolved = await call('notes/team', { token: at, id: tid, remove: true });
+  ok('the owner deletes the team', dissolved.status === 200 && !dissolved.body.teams.length, dissolved.body);
+  // The page was bob's writing, so it goes back to bob - deleting a team must
+  // not be a way to inherit other people's pages.
+  const afterTeam = await call(`notes?token=${bt}`);
+  ok('and its pages go back to whoever wrote them',
+    afterTeam.body.mine.some((n) => n.id === tpage.body.note.id && !n.team), afterTeam.body.mine.map((n) => n.title));
+  ok('not to the person who deleted the team',
+    !(await call(`notes?token=${at}`)).body.mine.some((n) => n.id === tpage.body.note.id));
+
   /* ---- rich text ---- */
   const rich = await call('notes', {
     token: at, title: 'formatted', html: true,
