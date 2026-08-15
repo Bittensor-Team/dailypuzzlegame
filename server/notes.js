@@ -12,6 +12,10 @@
  * recipient who is finished with one removes their own share and leaves the
  * note alone.
  *
+ * A note can also be put on the team board, which every signed-in account can
+ * read. The board is a noticeboard rather than a wiki: anyone may read what is
+ * pinned to it, only the author may change or remove it.
+ *
  * Kept in its own file rather than in the router: it owns a schema, and the
  * scoreboard has no business knowing about it.
  */
@@ -48,6 +52,13 @@ function install(db) {
     CREATE INDEX IF NOT EXISTS note_shares_by_player ON note_shares (player, shared);
   `);
 
+  // Added after the first release. ALTER TABLE is the migration; SQLite has no
+  // "add column if missing", so an existing column throws and is ignored.
+  try {
+    db.exec('ALTER TABLE notes ADD COLUMN board INTEGER NOT NULL DEFAULT 0');
+  } catch { /* already there */ }
+  db.exec('CREATE INDEX IF NOT EXISTS notes_on_board ON notes (board, updated)');
+
   const q = {
     byOwner: db.prepare('SELECT * FROM notes WHERE owner = ? ORDER BY pinned DESC, updated DESC'),
     sharedWith: db.prepare(`
@@ -57,12 +68,15 @@ function install(db) {
       ORDER BY n.pinned DESC, n.updated DESC
     `),
     one: db.prepare('SELECT * FROM notes WHERE id = ?'),
+    board: db.prepare('SELECT * FROM notes WHERE board = 1 ORDER BY pinned DESC, updated DESC LIMIT 200'),
     countFor: db.prepare('SELECT COUNT(*) AS n FROM notes WHERE owner = ?'),
     insert: db.prepare(`
-      INSERT INTO notes (id, owner, kind, title, body, pinned, created, updated)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO notes (id, owner, kind, title, body, pinned, board, created, updated)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `),
-    update: db.prepare('UPDATE notes SET kind = ?, title = ?, body = ?, pinned = ?, updated = ? WHERE id = ?'),
+    update: db.prepare(
+      'UPDATE notes SET kind = ?, title = ?, body = ?, pinned = ?, board = ?, updated = ? WHERE id = ?'
+    ),
     remove: db.prepare('DELETE FROM notes WHERE id = ?'),
     removeShares: db.prepare('DELETE FROM note_shares WHERE note = ?'),
     share: db.prepare('INSERT OR REPLACE INTO note_shares (note, player, shared) VALUES (?, ?, ?)'),
@@ -90,6 +104,7 @@ function shape(q, row, viewer) {
     title: row.title,
     body: row.body,
     pinned: !!row.pinned,
+    board: !!row.board,
     created: Number(row.created),
     updated: Number(row.updated),
     owner: owner ? owner.name : 'unknown',
@@ -136,6 +151,9 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
       name: me ? me.name : '',
       mine: q.byOwner.all(player).map((row) => shape(q, row, player)),
       shared: q.sharedWith.all(player).map((row) => shape(q, row, player)),
+      // The board is everyone's, including this player's own postings, so it
+      // reads the same for whoever is looking at it.
+      board: q.board.all().map((row) => shape(q, row, player)),
     });
     return true;
   }
@@ -146,6 +164,7 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
     const text = clean(body.body, MAX_BODY);
     const kind = KINDS.has(body.kind) ? body.kind : 'note';
     const pinned = body.pinned ? 1 : 0;
+    const board = body.board ? 1 : 0;
 
     if (title === null) { send(res, 400, { error: `A title is at most ${MAX_TITLE} characters.` }); return true; }
     if (text === null) { send(res, 400, { error: 'That note is too long.' }); return true; }
@@ -160,7 +179,10 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
       // able to "manage" a shared note means.
       const allowed = row.owner === player || q.isSharedWith.get(row.id, player);
       if (!allowed) { send(res, 403, { error: 'That note is not yours.' }); return true; }
-      q.update.run(kind, title, text, pinned, now, row.id);
+      // Being able to read the board is not being able to edit it: only the
+      // author moves a note on or off it.
+      const onBoard = row.owner === player ? board : row.board;
+      q.update.run(kind, title, text, pinned, onBoard, now, row.id);
       send(res, 200, { note: shape(q, q.one.get(row.id), player) });
       return true;
     }
@@ -170,7 +192,7 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
       return true;
     }
     const id = randomUUID();
-    q.insert.run(id, player, kind, title, text, pinned, now, now);
+    q.insert.run(id, player, kind, title, text, pinned, board, now, now);
     send(res, 200, { note: shape(q, q.one.get(id), player) });
     return true;
   }
@@ -181,6 +203,9 @@ function route({ q, req, res, url, body, post, send, playerForToken }) {
     if (!row) { send(res, 404, { error: 'That note is gone.' }); return true; }
 
     if (row.owner === player) {
+      // Logged because a note going missing is not something to have to guess
+      // about later; this is the only path that destroys one.
+      console.log(`[notes] ${player} deleted ${row.id} (${JSON.stringify(row.title).slice(0, 60)})`);
       q.removeShares.run(row.id);
       q.remove.run(row.id);
       send(res, 200, { deleted: row.id });

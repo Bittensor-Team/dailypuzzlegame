@@ -69,7 +69,7 @@ async function call(path, body) {
 
   const left = await call('notes/delete', { token: bt, id });
   ok('a recipient leaves rather than deletes', left.status === 200 && left.body.left === id, left);
-  ok('and the note survives', (await call(`notes?token=${at}`)).body.mine.length === 1);
+  ok('and the note survives', (await call(`notes?token=${at}`)).body.mine.some((n) => n.id === id));
 
   ok('a title has a limit',
     (await call('notes', { token: at, title: 'x'.repeat(200), body: 'y' })).status === 400);
@@ -79,9 +79,33 @@ async function call(path, body) {
   const ctrl = await call('notes', { token: at, title: 'clean', body: 'keep\tthis\nand thisnot that' });
   ok('control characters are stripped', ctrl.body.note.body === 'keep\tthis\nand thisnot that', ctrl.body.note);
 
+  /* ---- the team board ---- */
+  const posted = await call('notes', { token: at, title: 'deploy window', body: 'Friday 18:00 UTC', board: true });
+  ok('a note can be put on the board', posted.status === 200 && posted.body.note.board === true, posted.body);
+  const boardId = posted.body.note.id;
+
+  const bobBoard = await call(`notes?token=${bt}`);
+  ok('everyone signed in sees the board',
+    bobBoard.body.board.some((n) => n.id === boardId), bobBoard.body.board);
+  ok('and knows who posted it',
+    bobBoard.body.board.find((n) => n.id === boardId).owner === alice);
+  ok('a private note stays off the board',
+    !bobBoard.body.board.some((n) => n.title === 'clean'), bobBoard.body.board.map((n) => n.title));
+
+  const hijack = await call('notes', { token: bt, id: boardId, title: 'deploy window', body: 'cancelled' });
+  ok('reading the board is not editing it', hijack.status === 403, hijack);
+  ok('nor deleting from it',
+    (await call('notes/delete', { token: bt, id: boardId })).status === 403);
+
+  const pulled = await call('notes', { token: at, id: boardId, title: 'deploy window', body: 'Friday 18:00 UTC', board: false });
+  ok('the author can take it down', pulled.status === 200 && pulled.body.note.board === false, pulled.body);
+  ok('and then nobody else sees it',
+    !(await call(`notes?token=${bt}`)).body.board.some((n) => n.id === boardId));
+
   const gone = await call('notes/delete', { token: at, id });
   ok('the owner deletes', gone.status === 200 && gone.body.deleted === id, gone);
-  ok('and it is gone for the owner too', (await call(`notes?token=${at}`)).body.mine.length === 1);
+  ok('and it is gone for the owner too',
+    !(await call(`notes?token=${at}`)).body.mine.some((n) => n.id === id));
 
   console.log(failed ? `\n${failed} FAILED` : '\nall notes assertions passed');
   process.exit(failed ? 1 : 0);
