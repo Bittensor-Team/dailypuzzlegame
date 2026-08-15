@@ -102,6 +102,53 @@ async function call(path, body) {
   ok('and then nobody else sees it',
     !(await call(`notes?token=${bt}`)).body.board.some((n) => n.id === boardId));
 
+  /* ---- sections ---- */
+  const listed = await call(`notes?token=${at}`);
+  ok('every account gets a section', listed.body.sections.length >= 1, listed.body.sections);
+  ok('and its notes are in it', listed.body.mine.every((n) => n.section), listed.body.mine.map((n) => n.section));
+  const first = listed.body.sections[0].id;
+
+  const added = await call('notes/section', { token: at, name: 'Runbooks' });
+  ok('a section is created', added.status === 200 && added.body.sections.length === 2, added.body);
+  const runbooks = added.body.sections.find((x) => x.name === 'Runbooks').id;
+
+  const filed = await call('notes', { token: at, title: 'in runbooks', body: 'x', section: runbooks });
+  ok('a note can be filed in one', filed.body.note.section === runbooks, filed.body.note);
+
+  ok('a stranger cannot rename it',
+    (await call('notes/section', { token: bt, id: runbooks, name: 'theirs' })).status === 404);
+
+  const renamed = await call('notes/section', { token: at, id: runbooks, name: 'Runbook' });
+  ok('the owner renames it',
+    renamed.body.sections.some((x) => x.name === 'Runbook'), renamed.body.sections);
+
+  const dropped = await call('notes/section', { token: at, id: runbooks, remove: true });
+  ok('deleting one keeps a section', dropped.status === 200 && dropped.body.sections.length === 1, dropped.body);
+  const after = await call(`notes?token=${at}`);
+  ok('and moves its pages rather than losing them',
+    after.body.mine.some((n) => n.title === 'in runbooks' && n.section === first), after.body.mine.length);
+  ok('the last section cannot be deleted',
+    (await call('notes/section', { token: at, id: first, remove: true })).status === 400);
+
+  /* ---- rich text ---- */
+  const rich = await call('notes', {
+    token: at, title: 'formatted', html: true,
+    body: '<p>keep <b>this</b> and <ul class="checklist"><li data-checked="true">done</li></ul></p>',
+  });
+  ok('markup on the allowlist survives',
+    rich.body.note.body.includes('<b>this</b>') && rich.body.note.body.includes('data-checked="true"'), rich.body.note.body);
+  ok('and it is marked as rich text', rich.body.note.html === true);
+
+  const nasty = await call('notes', {
+    token: at, title: 'nasty', html: true,
+    body: '<p onclick="steal()">hi<script>fetch("//evil")</script><img src=x onerror=y><iframe src="//evil"></iframe></p>',
+  });
+  const kept = nasty.body.note.body;
+  ok('scripts do not survive', !/<script/i.test(kept), kept);
+  ok('nor iframes or images', !/<iframe|<img/i.test(kept), kept);
+  ok('nor event handlers', !/onclick|onerror/i.test(kept), kept);
+  ok('but the words do', kept.includes('hi'), kept);
+
   const gone = await call('notes/delete', { token: at, id });
   ok('the owner deletes', gone.status === 200 && gone.body.deleted === id, gone);
   ok('and it is gone for the owner too',
