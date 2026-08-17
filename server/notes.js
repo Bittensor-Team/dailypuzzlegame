@@ -42,6 +42,8 @@ const KINDS = new Set(['note', 'command']);
 const MAX_TEAMS_PER_PLAYER = 20;
 const MAX_MEMBERS_PER_TEAM = 50;
 const EVENT_KEEP_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long one person's work on one page counts as the same piece of news. */
+const EVENT_MERGE_MS = 30 * 60 * 1000;
 /** How much of the diary is handed over: a week behind, a quarter ahead. */
 const AGENDA_PAST_MS = 7 * 24 * 60 * 60 * 1000;
 const AGENDA_AHEAD_MS = 92 * 24 * 60 * 60 * 1000;
@@ -238,6 +240,12 @@ function install(db) {
       ORDER BY e.at LIMIT 100
     `),
     eventsTrim: db.prepare('DELETE FROM note_events WHERE at < ?'),
+    eventRecent: db.prepare(`
+      SELECT id FROM note_events
+      WHERE team = ? AND note = ? AND actor = ? AND kind = ? AND at > ?
+      ORDER BY at DESC LIMIT 1
+    `),
+    eventRetitle: db.prepare('UPDATE note_events SET title = ? WHERE id = ?'),
 
     /* ---- the diary ---- */
     schedAdd: db.prepare(`
@@ -331,7 +339,24 @@ function memberOf(q, team, player) {
 function recordEvent(q, note, kind, actor) {
   if (!note.team) return;
   const now = Date.now();
-  q.eventAdd.run(note.team, note.id, String(note.title || '').slice(0, 120), actor, kind, now);
+  const title = String(note.title || '').slice(0, 120);
+
+  /*
+   * One entry per writing session, not per save.
+   *
+   * A page saves itself about a second after each pause in typing, so writing
+   * one produced a row - and a notification to every other member - every time
+   * the writer stopped to think. Six for one page was the report, and it was
+   * six saves.
+   *
+   * If the same person did the same thing to the same page recently, the
+   * existing row stands. Its time is deliberately left alone: bumping it would
+   * push the event past the cursor of anyone who has already been told, and
+   * they would hear about it a second time for the same reason.
+   */
+  const recent = q.eventRecent.get(note.team, note.id, actor, kind, now - EVENT_MERGE_MS);
+  if (recent) q.eventRetitle.run(title, recent.id);
+  else q.eventAdd.run(note.team, note.id, title, actor, kind, now);
   q.eventsTrim.run(now - EVENT_KEEP_MS);
 }
 

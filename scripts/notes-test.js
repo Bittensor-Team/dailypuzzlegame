@@ -190,6 +190,27 @@ async function call(path, body) {
   ok('not to the person who deleted the team',
     !(await call(`notes?token=${at}`)).body.mine.some((n) => n.id === tpage.body.note.id));
 
+  // Writing a page saves it many times - once per pause in typing - and each
+  // save used to be its own piece of news for everyone else in the team.
+  const noisy = await call('notes/team', { token: at, name: 'Noise' });
+  const nid = noisy.body.team;
+  await call('notes/team/member', { token: at, id: nid, name: bob });
+  const nsec = noisy.body.teams.find((t) => t.id === nid).sections[0].id;
+
+  const chatty = await call('notes', { token: at, title: 'runbook', body: 'draft', section: nsec });
+  const chattyId = chatty.body.note.id;
+  for (const body of ['draft one', 'draft two', 'draft three', 'draft four', 'draft five']) {
+    await call('notes', { token: at, id: chattyId, title: 'runbook', body });
+  }
+  const heard = await call(`notes/events?token=${bt}&since=0`);
+  const aboutIt = heard.body.events.filter((e) => e.note === chattyId);
+  ok('six saves of one page are one piece of news',
+    aboutIt.filter((e) => e.kind === 'edited').length === 1, aboutIt.map((e) => e.kind));
+  ok('and adding it was its own',
+    aboutIt.filter((e) => e.kind === 'added').length === 1, aboutIt.map((e) => e.kind));
+  ok('a different page is its own news either way',
+    (await call('notes', { token: at, title: 'other', body: 'x', section: nsec })).status === 200);
+
   /* ---- the diary ---- */
   const team2 = await call('notes/team', { token: at, name: 'Ops' });
   const t2 = team2.body.team;
