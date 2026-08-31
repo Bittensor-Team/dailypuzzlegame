@@ -17,6 +17,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const { Worker } = require('node:worker_threads');
 
 // Server-only: the browser never receives the generator or the solver.
 const game = require('./puzzle.js');
@@ -99,6 +100,52 @@ db.exec(`
 const columns = db.prepare('PRAGMA table_info(players)').all().map((c) => c.name);
 if (!columns.includes('pass_hash')) db.exec('ALTER TABLE players ADD COLUMN pass_hash TEXT');
 if (!columns.includes('pass_salt')) db.exec('ALTER TABLE players ADD COLUMN pass_salt TEXT');
+
+/* The proved fewest moves for a day's board. Computing it costs from a
+   tenth of a second to a few seconds, so it is worked out once in a worker
+   thread and kept — never recomputed, and never on the request path. */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS daily_optimal (
+    day      TEXT PRIMARY KEY,
+    moves    INTEGER,
+    proved   INTEGER NOT NULL,
+    computed INTEGER NOT NULL
+  );
+`);
+const selectOptimal = db.prepare('SELECT moves, proved FROM daily_optimal WHERE day = ?');
+const insertOptimal = db.prepare(
+  `INSERT INTO daily_optimal (day, moves, proved, computed) VALUES (?, ?, ?, ?)
+   ON CONFLICT (day) DO UPDATE SET
+     moves = excluded.moves, proved = excluded.proved, computed = excluded.computed`
+);
+
+let solvingDay = null;   // one at a time; this is CPU work, not IO
+
+function scheduleOptimal(day) {
+  if (solvingDay || !plausibleDay(day) || selectOptimal.get(day)) return;
+  solvingDay = day;
+  const worker = new Worker(path.join(__dirname, 'optimal-worker.js'), { workerData: { day } });
+  worker.on('message', (m) => {
+    if (m && m.proved && m.moves) {
+      insertOptimal.run(m.day, m.moves, 1, Date.now());
+      console.log('optimal for', m.day, 'is', m.moves, 'moves (' + m.ms + 'ms)');
+    } else if (m) {
+      // Unproved means the budget ran out. Recording it would cache a guess.
+      console.error('optimal for', m.day, 'not proved within budget');
+    }
+  });
+  worker.on('error', (e) => console.error('optimal worker failed:', e.message));
+  worker.on('exit', () => { solvingDay = null; });
+}
+
+/* Null until the worker has finished, so the board simply does not show a
+   figure yet rather than showing a wrong one. */
+function optimalFor(day) {
+  const row = selectOptimal.get(day);
+  if (row && row.proved) return Number(row.moves);
+  scheduleOptimal(day);
+  return null;
+}
 
 const NO_TIME = 1e12;   // sorts unknown times last without special-casing
 
@@ -349,7 +396,8 @@ function distribution(day, player) {
 
   const me = player ? selectPlayer.get(player) : null;
 
-  return { day, total, attempts, dayBest, counts, best, bestMs, rank, betterThan, board, name: me ? me.name : null };
+  return { day, total, attempts, dayBest, optimal: optimalFor(day), counts, best, bestMs,
+           rank, betterThan, board, name: me ? me.name : null };
 }
 
 /* The Slack bot reads battle data and the battle engine announces to Slack, so
@@ -597,4 +645,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log('scoreboard api on http://' + HOST + ':' + PORT);
+  // Have today's answer ready before anybody asks for it.
+  scheduleOptimal(maxOpenDay());
 });
