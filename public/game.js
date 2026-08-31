@@ -1124,6 +1124,8 @@
       var peak = Math.max.apply(null, bins);
       var mineBin = mine === null ? -1 : Math.min(binCount - 1, Math.floor((mine - lo) / binSize));
 
+      var perfect = (data.optimal === null || data.optimal === undefined) ? null : data.optimal;
+
       // Header carries the headline percentage; the caption spells it out.
       var topPct = mine === null ? null : topPercent(data.rank, total);
       el.zoneTag.textContent = topPct === null ? 'attempts per move count' : 'you are top ' + topPct + '%';
@@ -1135,6 +1137,12 @@
         '<div><dt>Your moves</dt><dd>' + (mine === null ? '\u2014' : mine) + '</dd></div>' +
         '<div><dt>Fewest</dt><dd>' + counts[0].moves + '</dd></div>' +
         '<div><dt>Most</dt><dd>' + counts[counts.length - 1].moves + '</dd></div>' +
+        // The board's own floor, from the solver rather than from anybody's
+        // play. Absent until the server has finished proving it.
+        (perfect === null ? '' :
+          '<div class="zone-perfect" title="Fewest moves this board can be solved in, ' +
+          'proved by exhaustive search">' +
+          '<dt>Perfect</dt><dd>' + perfect + '</dd></div>') +
         '</div>' +
         '<div class="chart">' +
         '<div class="zbars">' + barsHtml(bins, lo, binSize, mineBin) + '</div>' +
