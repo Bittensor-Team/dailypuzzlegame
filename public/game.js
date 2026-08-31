@@ -1055,7 +1055,23 @@
       // browser holds no log for that day. The number and the segments must
       // agree, so both read from the same value.
       var shownTries = tries || (mine === null ? 0 : 1);
-      el.rankBest.textContent = mine === null ? '—' : mine;
+
+      /* Your best over what the board allows: "30 / 30" says you played it
+         perfectly, "35 / 30" says there are five moves still on the table. The
+         second figure comes from the solver, not from anybody's play. */
+      var perfect = (data && data.optimal !== null && data.optimal !== undefined)
+        ? Number(data.optimal) : null;
+      el.rankBest.textContent = mine === null ? '—' : String(mine);
+      if (perfect !== null) {
+        var floor = document.createElement('span');
+        floor.className = 'rank-perfect';
+        floor.textContent = ' / ' + perfect;
+        el.rankBest.appendChild(floor);
+        el.rankBest.parentNode.title =
+          'Your fewest moves, over the fewest this board can be solved in';
+      } else {
+        el.rankBest.parentNode.removeAttribute('title');
+      }
       el.rankTries.textContent = shownTries || '—';
 
       // Best-move bar: where your score sits between the day's fewest and most
@@ -1124,8 +1140,6 @@
       var peak = Math.max.apply(null, bins);
       var mineBin = mine === null ? -1 : Math.min(binCount - 1, Math.floor((mine - lo) / binSize));
 
-      var perfect = (data.optimal === null || data.optimal === undefined) ? null : data.optimal;
-
       // Header carries the headline percentage; the caption spells it out.
       var topPct = mine === null ? null : topPercent(data.rank, total);
       el.zoneTag.textContent = topPct === null ? 'attempts per move count' : 'you are top ' + topPct + '%';
@@ -1137,12 +1151,6 @@
         '<div><dt>Your moves</dt><dd>' + (mine === null ? '\u2014' : mine) + '</dd></div>' +
         '<div><dt>Fewest</dt><dd>' + counts[0].moves + '</dd></div>' +
         '<div><dt>Most</dt><dd>' + counts[counts.length - 1].moves + '</dd></div>' +
-        // The board's own floor, from the solver rather than from anybody's
-        // play. Absent until the server has finished proving it.
-        (perfect === null ? '' :
-          '<div class="zone-perfect" title="Fewest moves this board can be solved in, ' +
-          'proved by exhaustive search">' +
-          '<dt>Perfect</dt><dd>' + perfect + '</dd></div>') +
         '</div>' +
         '<div class="chart">' +
         '<div class="zbars">' + barsHtml(bins, lo, binSize, mineBin) + '</div>' +

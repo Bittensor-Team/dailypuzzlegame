@@ -1991,12 +1991,15 @@ a { cursor: var(--cur-target), pointer; }
 :root[data-theme="light"] .overlay { background: rgb(233 241 248 / 0.86); }
 :root[data-theme="light"] .block::before { background: rgb(255 255 255 / 0.5); }
 
-/* The board's own floor, next to what people actually scored. Marked out from
-   the human figures beside it, because it is a different kind of number. */
-.zone-perfect dt { color: var(--good) !important; }
-.zone-perfect dd {
+/* The board's own floor, trailing the player's own best as "30 / 30". Quieter
+   than the figure it follows: one is your score, the other is the ceiling on
+   how good any score could be. */
+.rank-perfect {
   color: var(--good);
-  text-shadow: 0 0 10px rgb(var(--good-rgb) / 0.45);
+  font-size: 0.62em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 10px rgb(var(--good-rgb) / 0.4);
 }
 
 /* ---------- responsive ---------- */
@@ -2069,15 +2072,9 @@ a { cursor: var(--cur-target), pointer; }
 
   /* Score zone: the distribution plus where you stand. */
   .hud-zone #zone { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; min-height: 0; }
-  /* The stat row repeats the rank panel, so those figures stay hidden. The
-     caption is kept: it is where the standing is spelled out in words.
-     Perfect is the exception — the board's own floor appears nowhere else on
-     the page, so hiding it here would hide it at the width most people use. */
-  .hud-zone .zone-stats > div:not(.zone-perfect) { display: none; }
-  .hud-zone .zone-stats { margin-top: 0; padding-top: 0; }
-  .hud-zone .zone-stats:empty { display: none; }
-  .hud-zone .zone-perfect { display: flex; align-items: baseline; gap: 8px; }
-  .hud-zone .zone-perfect dd { font-size: 15px; }
+  /* The stat row repeats the rank panel, so it stays hidden. The caption is
+     kept: it is where the standing is spelled out in words. */
+  .hud-zone .zone-stats { display: none; }
   .hud-zone .zone-caption { padding: 0 14px 8px; margin-top: 5px; font-size: 11px; }
   .hud-zone .chart { padding: 6px 14px 8px; }
   .hud-zone .zbars { height: 46px; padding-top: 12px; }
