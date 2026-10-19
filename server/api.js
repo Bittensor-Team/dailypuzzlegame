@@ -290,6 +290,7 @@ function verify(day, actions) {
     if (a.u === 1) {
       if (undoStack.length === 0) return 'undo with nothing to undo at ' + i;
       tubes = undoStack.pop();
+      pours -= 1;   // undo refunds its pour, matching the client's counter
       continue;
     }
 

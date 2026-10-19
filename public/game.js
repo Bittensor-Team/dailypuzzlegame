@@ -836,8 +836,9 @@
       var prev = state.history.pop();
       if (!prev) return;
       state.tubes = prev.tubes;
-      // The move counter deliberately does not rewind: undo rescues a dead
-      // end, it does not refund the moves already spent.
+      // Undo takes its pour back off the count, as it does in battles. The
+      // server replays the same log and refunds the same way.
+      state.moves = Math.max(0, state.moves - 1);
       state.moveLog.push({ u: 1 });
       state.selected = null;
       state.won = false;

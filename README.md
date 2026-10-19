@@ -47,11 +47,10 @@ node scripts/account.js delete "<nickname>"
 
 ## Scoring
 
-A day keeps your **best**, so replaying can only improve it. **Undo does not
-refund a move** — it rescues a dead end, it does not buy back a lower score.
-Because of that a score is no longer the length of the final solution path, so
-the client sends the full action log (pours *and* undos) and the server counts
-only the pours.
+A day keeps your **best**, so replaying can only improve it. **Undo refunds its
+move**, as it does in battles, so a score is the length of the final solution
+path. The client still sends the full action log (pours *and* undos); the
+server replays it, counting each pour and taking one back for each undo.
 
 Dates are the player's **local** date. A board opens once that date has begun
 anywhere on Earth (UTC+14) — comparing against the server's own UTC date locks
